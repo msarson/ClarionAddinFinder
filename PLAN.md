@@ -49,7 +49,8 @@ File: `registry.json`
       "category": "Source Control",
       "version": "1.0.7",
       "clarionMinVersion": "11",
-      "downloadUrl": "https://github.com/msarson/Clarion-GitPane/releases/download/v1.0.7/GitPane.zip",
+      "downloadUrl": "https://github.com/msarson/Clarion-GitPane/releases/download/v1.0.7/GitPane.dll",
+      "addinFileUrl": "https://github.com/msarson/Clarion-GitPane/releases/download/v1.0.7/GitPane.addin",
       "homepageUrl": "https://github.com/msarson/Clarion-GitPane",
       "changelogUrl": "https://github.com/msarson/Clarion-GitPane/blob/master/CHANGELOG.md"
     }
@@ -115,14 +116,13 @@ The AddinFinder is itself distributed as a GitHub Release:
 
 ## Tech Stack
 
-- C# targeting **.NET 4.0** (matches all other addins)
+- C# targeting **.NET 4.0** (matches all other addins, confirmed from Clarion's `net40` runtime)
 - **WinForms** pane
 - **`WebClient`** for HTTP downloads (simpler than HttpClient on .NET 4.0)
-- **`Newtonsoft.Json`** or manual JSON parsing (avoid heavy deps — consider manual)
-- **`System.IO.Compression`** for zip extraction (available in .NET 4.5+; may need fallback)
-
-> Note: Clarion ships with .NET 4.x — check whether `System.IO.Compression.ZipFile`
-> is available. If not, use a small bundled zip helper or require DLLs distributed unzipped.
+- **No zip extraction** — `System.IO.Compression.ZipFile` requires .NET 4.5+, unavailable here.
+  Addins are distributed as **two direct file downloads**: `<Name>.dll` + `<Name>.addin`
+  (plus any extra DLL dependencies listed in the registry manifest).
+- **No `Newtonsoft.Json`** — parse the small registry JSON manually to avoid bundling dependencies.
 
 ---
 
@@ -151,6 +151,6 @@ The AddinFinder is itself distributed as a GitHub Release:
 
 ## Open Questions
 
-- Does Clarion's .NET runtime include `System.IO.Compression`? If not, distribute addins as flat zips or use a bundled extractor.
+- ~~Does Clarion's .NET runtime include `System.IO.Compression`?~~ **Resolved: NO — Clarion is net40, ZipFile requires 4.5+. Use direct file downloads instead.**
 - Should the registry URL be hardcoded or configurable (for community forks)?
 - Who can submit to the registry? PR-based for now — revisit when community grows.
