@@ -119,10 +119,19 @@ namespace AddinFinder
         {
             if (string.IsNullOrEmpty(url)) return;
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
-            using (var wc = new WebClient())
+            string tmp = dest + ".tmp";
+            try
             {
-                wc.Headers[HttpRequestHeader.UserAgent] = "ClarionAddinFinder/1.0";
-                wc.DownloadFile(url, dest);
+                using (var wc = new WebClient())
+                {
+                    wc.Headers[HttpRequestHeader.UserAgent] = "ClarionAddinFinder/1.0";
+                    wc.DownloadFile(url, tmp);  // download to temp — dest may be locked
+                }
+                File.Copy(tmp, dest, overwrite: true);  // throws IOException if dest locked → staging kicks in
+            }
+            finally
+            {
+                if (File.Exists(tmp)) File.Delete(tmp);
             }
         }
     }
