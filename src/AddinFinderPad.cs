@@ -26,13 +26,6 @@ namespace AddinFinder
 
         public AddinFinderPad()
         {
-            using (var stream = System.Reflection.Assembly.GetExecutingAssembly()
-                       .GetManifestResourceStream("AddinFinder.Resources.AddinFinderIcon.png"))
-            {
-                if (stream != null)
-                    ResourceService.RegisterNeutralImages(
-                        new EmbeddedIconManager("AddinFinder.AddinFinderIcon", new System.Drawing.Bitmap(stream)));
-            }
             InitializeComponent();
             _installedAddins = _installedStore.Load();
             _installer       = TryCreateInstaller();
@@ -314,15 +307,6 @@ namespace AddinFinder
             }
             catch { }
             return null;
-        }
-
-        private sealed class EmbeddedIconManager : System.Resources.ResourceManager
-        {
-            private readonly string _key;
-            private readonly System.Drawing.Bitmap _bitmap;
-            public EmbeddedIconManager(string key, System.Drawing.Bitmap bitmap) : base(key, System.Reflection.Assembly.GetExecutingAssembly()) { _key = key; _bitmap = bitmap; }
-            public override object GetObject(string name) => name == _key ? _bitmap : null;
-            public override object GetObject(string name, System.Globalization.CultureInfo culture) => GetObject(name);
         }
     }
 }

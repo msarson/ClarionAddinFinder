@@ -12,10 +12,15 @@
     <Import assembly="AddinFinder.dll"/>
   </Runtime>
 
+  <Path name="/Workspace/Autostart">
+    <Command id="AddinFinderRegisterIcons" class="AddinFinder.RegisterIconsCommand"/>
+  </Path>
+
   <Path name="/SharpDevelop/Workbench/Pads">
     <Pad id="AddinFinder"
          category="Main"
          title="Addin Finder"
+         icon="AddinFinder.AddinFinderIcon"
          shortcut="Control|Alt|A"
          class="AddinFinder.AddinFinderPad"/>
   </Path>
