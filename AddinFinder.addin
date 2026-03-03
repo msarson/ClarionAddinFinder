@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AddIn name="AddinFinder"
+       author="msarson"
+       description="Discover and install Clarion IDE addins from the community registry"
+       addInManagerHidden="preinstalled">
+
+  <Manifest>
+    <Identity name="AddinFinder"/>
+  </Manifest>
+
+  <Runtime>
+    <Import assembly="AddinFinder.dll"/>
+  </Runtime>
+
+  <Path name="/SharpDevelop/Workbench/Pads">
+    <Pad id="AddinFinder"
+         category="Main"
+         title="Addin Finder"
+         shortcut="Control|Alt|A"
+         class="AddinFinder.AddinFinderPad"/>
+  </Path>
+
+</AddIn>
