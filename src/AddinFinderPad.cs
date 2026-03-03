@@ -140,6 +140,7 @@ namespace AddinFinder
                 _installButton.Enabled   = anyInstallable && _installer != null;
                 _updateButton.Enabled    = anyUpdatable   && _installer != null;
                 _uninstallButton.Enabled = anyUninstallable;
+                _reinstallButton.Enabled = false;  // multi-select: no reinstall
                 return;
             }
 
@@ -157,6 +158,7 @@ namespace AddinFinder
             _installButton.Enabled   = status == AddinStatus.NotInstalled && _installer != null;
             _updateButton.Enabled    = status == AddinStatus.UpdateAvailable && _installer != null;
             _uninstallButton.Enabled = status == AddinStatus.Installed || status == AddinStatus.UpdateAvailable;
+            _reinstallButton.Enabled = status == AddinStatus.Installed && _installer != null;
         }
 
         private void ClearDetail()
@@ -171,12 +173,14 @@ namespace AddinFinder
             _installButton.Enabled   = false;
             _updateButton.Enabled    = false;
             _uninstallButton.Enabled = false;
+            _reinstallButton.Enabled = false;
         }
 
         // ── Install / Update / Uninstall ──────────────────────────────────
 
-        private void OnInstallClick(object? sender, EventArgs e)  => RunInstall(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.NotInstalled).ToList(), isUpdate: false);
-        private void OnUpdateClick(object? sender, EventArgs e)   => RunInstall(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.UpdateAvailable).ToList(), isUpdate: true);
+        private void OnInstallClick(object? sender, EventArgs e)   => RunInstall(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.NotInstalled).ToList(), isUpdate: false);
+        private void OnUpdateClick(object? sender, EventArgs e)    => RunInstall(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.UpdateAvailable).ToList(), isUpdate: true);
+        private void OnReinstallClick(object? sender, EventArgs e) => RunInstall(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.Installed).ToList(), isUpdate: true);
 
         private void RunInstall(List<RegistryAddin> addins, bool isUpdate)
         {
@@ -258,6 +262,7 @@ namespace AddinFinder
             _installButton.Enabled   = enabled;
             _updateButton.Enabled    = enabled;
             _uninstallButton.Enabled = enabled;
+            _reinstallButton.Enabled = enabled;
             _refreshButton.Enabled   = enabled;
         }
 

@@ -27,6 +27,7 @@ namespace AddinFinder
         private Button          _installButton;
         private Button          _updateButton;
         private Button          _uninstallButton;
+        private Button          _reinstallButton;
         private Label           _statusLabel;
 
         #endregion
@@ -51,6 +52,7 @@ namespace AddinFinder
             _installButton  = new Button();
             _updateButton   = new Button();
             _uninstallButton = new Button();
+            _reinstallButton = new Button();
             _statusLabel    = new Label();
 
             // ── ToolStrip ────────────────────────────────────────────────
@@ -175,9 +177,17 @@ namespace AddinFinder
             _uninstallButton.Enabled = false;
             _uninstallButton.Click += OnUninstallClick;
 
+            _reinstallButton.Text     = "Reinstall";
+            _reinstallButton.Width    = 80;
+            _reinstallButton.Height   = 26;
+            _reinstallButton.Location = new Point(264, 4);
+            _reinstallButton.Enabled  = false;
+            _reinstallButton.Click   += OnReinstallClick;
+
             buttonPanel.Controls.Add(_installButton);
             buttonPanel.Controls.Add(_updateButton);
             buttonPanel.Controls.Add(_uninstallButton);
+            buttonPanel.Controls.Add(_reinstallButton);
 
             // Assemble detail panel — Fill first, then Bottom, then Top (z-order rule)
             _detailPanel.Controls.Add(_detailDescription); // Fill
