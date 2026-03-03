@@ -30,7 +30,6 @@ namespace AddinFinder
             InitializeComponent();
             _installedAddins = _installedStore.Load();
             _installer       = TryCreateInstaller();
-            _installer?.ApplyPendingUpdates();
             SetSplitterDistance();
         }
 
