@@ -21,6 +21,7 @@ namespace AddinFinder
         private List<RegistryAddin>    _registryAddins  = new List<RegistryAddin>();
         private List<InstalledAddin>   _installedAddins = new List<InstalledAddin>();
         private RegistryAddin?         _selectedAddin;
+        private string                 _lastError       = string.Empty;
 
         private bool IsInstalledTabActive => _filterTabs.SelectedIndex == 1;
 
@@ -72,8 +73,9 @@ namespace AddinFinder
                         _registryAddins  = registry.Addins;
                         _installedAddins = _installedStore.Load();
                         PopulateList();
-                        _statusLabel.Text      = $"{registry.Addins.Count} addin(s) available · updated {registry.Updated}";
-                        _refreshButton.Enabled = true;
+                        _statusLabel.Text        = $"{registry.Addins.Count} addin(s) available · updated {registry.Updated}";
+                        _refreshButton.Enabled   = true;
+                        _copyErrorButton.Visible = false;
                     }));
                 }
                 catch (Exception ex)
@@ -194,14 +196,23 @@ namespace AddinFinder
                         _installer.Install(addin, out staged);
                         if (staged) anyStagedUpdate = true;
                     }
-                    catch (Exception ex) { failed.Add($"{addin.Name}: {ex.Message}"); }
+                    catch (Exception ex)
+                    {
+                        var msg = ex.Message;
+                        if (ex.InnerException != null) msg += " → " + ex.InnerException.Message;
+                        failed.Add($"{addin.Name}: {msg}");
+                    }
                 }
                 _contentPanel.BeginInvoke(new Action(() =>
                 {
                     _installedAddins = _installedStore.Load();
                     PopulateList();
                     if (failed.Count > 0)
-                        _statusLabel.Text = $"Errors: {string.Join("; ", failed)}";
+                    {
+                        _lastError = string.Join(Environment.NewLine, failed);
+                        _statusLabel.Text        = $"Errors: {string.Join("; ", failed)}";
+                        _copyErrorButton.Visible = true;
+                    }
                     else if (anyStagedUpdate)
                         _statusLabel.Text = "Update staged — restart Clarion to complete.";
                     else
@@ -234,6 +245,11 @@ namespace AddinFinder
             _statusLabel.Text = failed.Count == 0
                 ? $"{addins.Count} addin(s) uninstalled. Please restart Clarion."
                 : $"Errors: {string.Join("; ", failed)}";
+            if (failed.Count > 0)
+            {
+                _lastError               = string.Join(Environment.NewLine, failed);
+                _copyErrorButton.Visible = true;
+            }
             OnAddinSelected(null, EventArgs.Empty);
         }
 
@@ -307,6 +323,12 @@ namespace AddinFinder
             }
             catch { }
             return null;
+        }
+
+        private void OnCopyErrorClick(object? sender, EventArgs e)
+        {
+            if (!string.IsNullOrEmpty(_lastError))
+                System.Windows.Forms.Clipboard.SetText(_lastError);
         }
     }
 }

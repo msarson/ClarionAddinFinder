@@ -12,6 +12,7 @@ namespace AddinFinder
         private Panel           _contentPanel;
         private ToolStrip       _toolStrip;
         private ToolStripButton _refreshButton;
+        private ToolStripButton _copyErrorButton;
         private SplitContainer  _mainSplitter;
         private Panel           _listPanel;
         private TabControl      _filterTabs;
@@ -35,6 +36,7 @@ namespace AddinFinder
             _contentPanel   = new Panel();
             _toolStrip      = new ToolStrip();
             _refreshButton  = new ToolStripButton();
+            _copyErrorButton = new ToolStripButton();
             _mainSplitter   = new SplitContainer();
             _listPanel      = new Panel();
             _filterTabs     = new TabControl();
@@ -56,10 +58,17 @@ namespace AddinFinder
             _refreshButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
             _refreshButton.Click       += OnRefreshClick;
 
+            _copyErrorButton.Text           = "📋 Copy Error";
+            _copyErrorButton.DisplayStyle   = ToolStripItemDisplayStyle.Text;
+            _copyErrorButton.Alignment      = ToolStripItemAlignment.Right;
+            _copyErrorButton.Visible        = false;
+            _copyErrorButton.Click         += OnCopyErrorClick;
+
             _toolStrip.GripStyle = ToolStripGripStyle.Hidden;
             _toolStrip.Dock      = DockStyle.Top;
             _toolStrip.Padding   = new Padding(5, 2, 5, 2);
             _toolStrip.Items.Add(_refreshButton);
+            _toolStrip.Items.Add(_copyErrorButton);
 
             // ── Status label ─────────────────────────────────────────────
             _statusLabel.Dock      = DockStyle.Top;
