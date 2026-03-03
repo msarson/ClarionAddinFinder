@@ -28,6 +28,7 @@ namespace AddinFinder
             InitializeComponent();
             _installedAddins = _installedStore.Load();
             _installer       = TryCreateInstaller();
+            _installer?.ApplyPendingUpdates();
             SetSplitterDistance();
         }
 
@@ -182,19 +183,28 @@ namespace AddinFinder
 
             ThreadPool.QueueUserWorkItem(_ =>
             {
-                var failed = new List<string>();
+                var failed  = new List<string>();
+                bool anyStagedUpdate = false;
                 foreach (var addin in addins)
                 {
-                    try   { _installer.Install(addin); }
+                    try
+                    {
+                        bool staged;
+                        _installer.Install(addin, out staged);
+                        if (staged) anyStagedUpdate = true;
+                    }
                     catch (Exception ex) { failed.Add($"{addin.Name}: {ex.Message}"); }
                 }
                 _contentPanel.BeginInvoke(new Action(() =>
                 {
                     _installedAddins = _installedStore.Load();
                     PopulateList();
-                    _statusLabel.Text = failed.Count == 0
-                        ? $"{addins.Count} addin(s) installed. Please restart Clarion to activate."
-                        : $"Errors: {string.Join("; ", failed)}";
+                    if (failed.Count > 0)
+                        _statusLabel.Text = $"Errors: {string.Join("; ", failed)}";
+                    else if (anyStagedUpdate)
+                        _statusLabel.Text = "Update staged — restart Clarion to complete.";
+                    else
+                        _statusLabel.Text = $"{addins.Count} addin(s) installed. Please restart Clarion to activate.";
                     OnAddinSelected(null, EventArgs.Empty);
                     SetButtons(true);
                 }));
