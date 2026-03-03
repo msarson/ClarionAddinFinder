@@ -4,7 +4,7 @@ using ICSharpCode.Core;
 
 namespace AddinFinder
 {
-    internal class RegisterIconsCommand : AbstractCommand
+    public class RegisterIconsCommand : AbstractCommand
     {
         public override void Run()
         {
