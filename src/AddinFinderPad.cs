@@ -16,6 +16,7 @@ namespace AddinFinder
 
         private readonly RegistryClient      _registryClient  = new RegistryClient();
         private readonly InstalledAddinStore _installedStore  = new InstalledAddinStore();
+        private readonly AddinFinderSettings _settings        = AddinFinderSettings.Load();
         private AddinInstaller?              _installer;
 
         private List<RegistryAddin>    _registryAddins  = new List<RegistryAddin>();
@@ -223,7 +224,11 @@ namespace AddinFinder
                     else if (anyStagedUpdate)
                         _statusLabel.Text = "Update staged — restart Clarion to complete.";
                     else
+                    {
+                        string names = string.Join(", ", addins.Select(a => a.Name));
                         _statusLabel.Text = $"{addins.Count} addin(s) installed. Please restart Clarion to activate.";
+                        ShowRestartReminder(names);
+                    }
                     OnAddinSelected(null, EventArgs.Empty);
                     SetButtons(true);
                 }));
@@ -264,8 +269,25 @@ namespace AddinFinder
             else if (anyStaged)
                 _statusLabel.Text = "Uninstall staged — restart Clarion to complete.";
             else
+            {
                 _statusLabel.Text = $"{addins.Count} addin(s) uninstalled. Please restart Clarion.";
+                ShowRestartReminder(string.Join(", ", addins.Select(a => a.Name)));
+            }
             OnAddinSelected(null, EventArgs.Empty);
+        }
+
+        private void ShowRestartReminder(string addinNames)
+        {
+            if (_settings.SuppressRestartReminder) return;
+            using (var dlg = new RestartReminderDialog(addinNames))
+            {
+                dlg.ShowDialog(_contentPanel.FindForm());
+                if (dlg.DontShowAgain)
+                {
+                    _settings.SuppressRestartReminder = true;
+                    _settings.Save();
+                }
+            }
         }
 
         private void SetButtons(bool enabled)
