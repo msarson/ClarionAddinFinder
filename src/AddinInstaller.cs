@@ -99,9 +99,9 @@ namespace AddinFinder
                 if (Directory.Exists(folder))
                     Directory.Delete(folder, recursive: true);
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
-                // Files locked — stage for removal on next startup
+                // Files locked or access denied — stage for removal on next startup
                 staged = true;
                 string pending = Path.Combine(StagingRoot, addin.Id);
                 Directory.CreateDirectory(pending);
