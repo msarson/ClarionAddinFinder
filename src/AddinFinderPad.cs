@@ -142,10 +142,11 @@ namespace AddinFinder
             // Single select
             _selectedAddin = selected[0];
             var status = GetStatus(_selectedAddin);
-            _detailName.Text        = _selectedAddin.Name;
+            _detailName.Text        = _selectedAddin.Name + (_selectedAddin.Fork ? "  [Fork]" : "");
             _detailAuthor.Text      = $"by {_selectedAddin.Author}  ·  {_selectedAddin.License}  ·  {_selectedAddin.TargetFramework}";
             _detailVersion.Text     = $"Version {_selectedAddin.Version}";
-            _detailDescription.Text = _selectedAddin.Description;
+            _detailDescription.Text = _selectedAddin.Description +
+                (!string.IsNullOrEmpty(_selectedAddin.UpstreamUrl) ? $"\r\n\r\nFork of: {_selectedAddin.UpstreamUrl}" : "");
             _detailHomepage.Text    = string.IsNullOrEmpty(_selectedAddin.HomepageUrl) ? "" : "Homepage";
             _detailChangelog.Text   = string.IsNullOrEmpty(_selectedAddin.ChangelogUrl) ? "" : "Changelog";
 

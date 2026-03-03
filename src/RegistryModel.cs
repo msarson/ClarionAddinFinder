@@ -15,9 +15,12 @@ namespace AddinFinder
         public string Version       { get; set; } = "";
         public string TargetFramework { get; set; } = "";
         public List<string> DownloadUrls { get; set; } = new List<string>();
+        public string DownloadZipUrl { get; set; } = "";
         public string AddinFileUrl  { get; set; } = "";
         public string HomepageUrl   { get; set; } = "";
         public string ChangelogUrl  { get; set; } = "";
+        public bool   Fork          { get; set; } = false;
+        public string UpstreamUrl   { get; set; } = "";
     }
 
     public class AddinRegistry

@@ -72,13 +72,19 @@ namespace AddinFinder
             Version         = S(a, "version"),
             TargetFramework = S(a, "targetFramework"),
             DownloadUrls    = StrList(a, "downloadUrls"),
+            DownloadZipUrl  = S(a, "downloadZipUrl"),
             AddinFileUrl    = S(a, "addinFileUrl"),
             HomepageUrl     = S(a, "homepageUrl"),
             ChangelogUrl    = S(a, "changelogUrl"),
+            Fork            = Bool(a, "fork"),
+            UpstreamUrl     = S(a, "upstreamUrl"),
         };
 
         private static string S(Dictionary<string, object> d, string key)
             => d.TryGetValue(key, out var v) ? v?.ToString() ?? "" : "";
+
+        private static bool Bool(Dictionary<string, object> d, string key)
+            => d.TryGetValue(key, out var v) && v is bool b && b;
 
         private static List<string> StrList(Dictionary<string, object> d, string key)
         {
