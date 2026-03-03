@@ -4,6 +4,9 @@ All notable changes to Addin Finder are documented here.
 
 ## [0.5.13] - 2026-03-03
 
+### Added
+- Zip release asset (`AddinFinder-vX.X.X.zip`) for easier first-time installation — extract to addins folder and restart
+
 ### Fixed
 - Pad title now shows correct version after self-update (reads disk file version, not in-memory assembly)
 

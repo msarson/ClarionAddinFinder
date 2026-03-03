@@ -22,12 +22,14 @@ A dockable addin manager for the **Clarion IDE** — discover, install, update, 
 
 Addin Finder is bootstrapped manually the first time; after that it updates itself.
 
-1. Download **`AddinFinder.dll`** and **`AddinFinder.addin`** from the [latest release](https://github.com/msarson/ClarionAddinFinder/releases/latest).
-2. Copy both files into your Clarion addins folder, e.g.:
+1. Download **`AddinFinder-v0.5.13.zip`** from the [latest release](https://github.com/msarson/ClarionAddinFinder/releases/latest).
+2. Extract the zip into your Clarion addins folder, e.g.:
    ```
    C:\Clarion\Clarion11.1\accessory\addins\AddinFinder\
    ```
 3. Restart Clarion — the **Addin Finder** pad will appear under *View → Pads*.
+
+> The zip contains `AddinFinder.dll` and `AddinFinder.addin`. Both files must be in the same folder.
 
 ---
 
