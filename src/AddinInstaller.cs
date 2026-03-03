@@ -55,7 +55,17 @@ namespace AddinFinder
                         string relative = file.Substring(stagingDir.Length + 1);
                         string dest     = Path.Combine(addinDir, relative);
                         Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-                        File.Copy(file, dest, overwrite: true);
+
+                        // .NET holds DLLs with FILE_SHARE_DELETE — we can rename (not overwrite) a loaded DLL.
+                        // Rename the old file out of the way first, then copy the new one in.
+                        if (File.Exists(dest))
+                        {
+                            string backup = dest + ".old";
+                            if (File.Exists(backup)) File.Delete(backup);
+                            File.Move(dest, backup);
+                        }
+
+                        File.Copy(file, dest, overwrite: false);
                     }
                     Directory.Delete(stagingDir, recursive: true);
                     applied++;
@@ -113,15 +123,21 @@ namespace AddinFinder
 
         /// <summary>
         /// Stages a self-update of AddinFinder. Always staged since the DLL is always locked.
-        /// Downloads to %APPDATA%\ClarionAddinFinder\pending\AddinFinder\ for ApplyPendingUpdates to handle.
+        /// Downloads to %APPDATA%\ClarionAddinFinder\pending\{addinFolderName}\ for ApplyPendingUpdates to handle.
         /// </summary>
         public static void StageSelfUpdate(SelfUpdateInfo info)
         {
-            string pending = Path.Combine(StagingRoot, "AddinFinder");
+            // Derive names from the actual assembly location — never hardcode
+            string asmPath     = typeof(AddinInstaller).Assembly.Location;
+            string addinId     = Path.GetFileName(Path.GetDirectoryName(asmPath)!);
+            string dllFileName = Path.GetFileName(asmPath);
+            string addinFileName = Path.GetFileNameWithoutExtension(asmPath) + ".addin";
+
+            string pending = Path.Combine(StagingRoot, addinId);
             Directory.CreateDirectory(pending);
-            Download(info.DownloadUrl,    Path.Combine(pending, "AddinFinder.dll"));
+            Download(info.DownloadUrl,    Path.Combine(pending, dllFileName));
             if (!string.IsNullOrEmpty(info.AddinFileUrl))
-                Download(info.AddinFileUrl, Path.Combine(pending, "AddinFinder.addin"));
+                Download(info.AddinFileUrl, Path.Combine(pending, addinFileName));
         }
 
         private void WriteFiles(RegistryAddin addin, string dest)
