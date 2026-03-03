@@ -85,9 +85,11 @@ namespace AddinFinder
                 Name      = "bannerButton",
                 Text      = "Update Now",
                 Font      = new Font(SystemFonts.DefaultFont.FontFamily, 8f),
-                Size      = new Size(82, 20),
+                AutoSize  = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Location  = new Point(340, 5),
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Padding   = new Padding(4, 0, 4, 0)
             };
             bannerButton.FlatAppearance.BorderColor = Color.FromArgb(200, 160, 0);
 

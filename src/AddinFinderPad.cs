@@ -45,9 +45,22 @@ namespace AddinFinder
                 if (firstShow)
                 {
                     firstShow = false;
+                    SetPadTitle();
                     OnRefreshClick(null, EventArgs.Empty);
                 }
             };
+        }
+
+        private void SetPadTitle()
+        {
+            var v = Assembly.GetExecutingAssembly().GetName().Version;
+            string title = $"Addin Finder v{v.Major}.{v.Minor}.{v.Build}";
+            Control parent = _contentPanel.Parent;
+            while (parent != null)
+            {
+                if (parent is Form f) { f.Text = title; return; }
+                parent = parent.Parent;
+            }
         }
 
         // ── Filter tab ────────────────────────────────────────────────────
