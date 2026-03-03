@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Web.Script.Serialization;
 
 namespace AddinFinder
@@ -50,7 +51,15 @@ namespace AddinFinder
         }
 
         public static string SerialiseInstalled(List<InstalledAddin> addins)
-            => _js.Serialize(new { addins });
+            => _js.Serialize(new
+            {
+                addins = addins.Select(a => new
+                {
+                    id          = a.Id,
+                    version     = a.Version,
+                    installedAt = a.InstalledAt,
+                }).ToList()
+            });
 
         private static RegistryAddin MapAddin(Dictionary<string, object> a) => new RegistryAddin
         {
