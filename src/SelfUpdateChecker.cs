@@ -26,9 +26,6 @@ namespace AddinFinder
         {
             try
             {
-                ServicePointManager.SecurityProtocol =
-                    SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
-
                 string json = null!;
                 Exception? lastEx = null;
                 for (int attempt = 0; attempt < 3; attempt++)

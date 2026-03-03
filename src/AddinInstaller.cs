@@ -12,6 +12,12 @@ namespace AddinFinder
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                          "ClarionAddinFinder", "pending");
 
+        // Set TLS 1.2 once — .NET 4.x defaults to TLS 1.0, GitHub requires 1.2+
+        static AddinInstaller()
+        {
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
+        }
+
         private readonly string _addinsRoot;
         private readonly InstalledAddinStore _store;
 
@@ -50,9 +56,10 @@ namespace AddinFinder
                     }
 
                     // Staged update — copy files over
+                    string stagingDirNorm = stagingDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                     foreach (string file in Directory.GetFiles(stagingDir, "*", SearchOption.AllDirectories))
                     {
-                        string relative = file.Substring(stagingDir.Length + 1);
+                        string relative = file.Substring(stagingDirNorm.Length + 1);
                         string dest     = Path.Combine(addinDir, relative);
                         Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
 
@@ -152,7 +159,11 @@ namespace AddinFinder
                         foreach (var entry in zip.Entries)
                         {
                             if (string.IsNullOrEmpty(entry.Name)) continue;
-                            string entryDest = Path.Combine(dest, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+                            string entryDest = Path.GetFullPath(
+                                Path.Combine(dest, entry.FullName.Replace('/', Path.DirectorySeparatorChar)));
+                            // Guard against zip slip path traversal
+                            if (!entryDest.StartsWith(Path.GetFullPath(dest) + Path.DirectorySeparatorChar))
+                                throw new InvalidOperationException($"Zip entry blocked (path traversal): {entry.FullName}");
                             Directory.CreateDirectory(Path.GetDirectoryName(entryDest)!);
                             entry.ExtractToFile(entryDest, overwrite: true);
                         }
@@ -176,7 +187,6 @@ namespace AddinFinder
         private static void Download(string url, string dest)
         {
             if (string.IsNullOrEmpty(url)) return;
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
             string tmp = dest + ".tmp";
             try
             {

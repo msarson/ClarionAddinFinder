@@ -14,8 +14,6 @@ namespace AddinFinder
 
         public AddinRegistry Fetch()
         {
-            // .NET 4.x defaults to TLS 1.0; GitHub requires TLS 1.2+
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
             using (var wc = new WebClient())
             {
                 wc.Encoding = Encoding.UTF8;
