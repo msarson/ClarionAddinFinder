@@ -21,8 +21,10 @@ namespace AddinFinder
             _store      = store;
         }
 
+        private const string UninstallMarker = "_uninstall";
+
         /// <summary>
-        /// Apply any pending updates staged during the previous session.
+        /// Apply any pending updates/uninstalls staged during the previous session.
         /// Call this at startup before any addin folders are loaded.
         /// </summary>
         public int ApplyPendingUpdates()
@@ -37,6 +39,17 @@ namespace AddinFinder
 
                 try
                 {
+                    // Staged uninstall — marker file means delete the addin folder entirely
+                    if (File.Exists(Path.Combine(stagingDir, UninstallMarker)))
+                    {
+                        if (Directory.Exists(addinDir))
+                            Directory.Delete(addinDir, recursive: true);
+                        Directory.Delete(stagingDir, recursive: true);
+                        applied++;
+                        continue;
+                    }
+
+                    // Staged update — copy files over
                     foreach (string file in Directory.GetFiles(stagingDir, "*", SearchOption.AllDirectories))
                     {
                         string relative = file.Substring(stagingDir.Length + 1);
@@ -76,12 +89,26 @@ namespace AddinFinder
             return true;
         }
 
-        public void Uninstall(RegistryAddin addin)
+        /// <summary>Returns true if uninstall was staged (files locked); false if removed immediately.</summary>
+        public bool Uninstall(RegistryAddin addin, out bool staged)
         {
+            staged = false;
             string folder = Path.Combine(_addinsRoot, addin.Id);
-            if (Directory.Exists(folder))
-                Directory.Delete(folder, recursive: true);
+            try
+            {
+                if (Directory.Exists(folder))
+                    Directory.Delete(folder, recursive: true);
+            }
+            catch (IOException)
+            {
+                // Files locked — stage for removal on next startup
+                staged = true;
+                string pending = Path.Combine(StagingRoot, addin.Id);
+                Directory.CreateDirectory(pending);
+                File.WriteAllText(Path.Combine(pending, UninstallMarker), "");
+            }
             _store.MarkUninstalled(addin.Id);
+            return true;
         }
 
         private void WriteFiles(RegistryAddin addin, string dest)

@@ -238,21 +238,29 @@ namespace AddinFinder
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
             var failed = new List<string>();
+            bool anyStaged = false;
             foreach (var addin in addins)
             {
-                try   { _installer.Uninstall(addin); }
+                try
+                {
+                    bool staged;
+                    _installer.Uninstall(addin, out staged);
+                    if (staged) anyStaged = true;
+                }
                 catch (Exception ex) { failed.Add($"{addin.Name}: {ex.Message}"); }
             }
             _installedAddins = _installedStore.Load();
             PopulateList();
-            _statusLabel.Text = failed.Count == 0
-                ? $"{addins.Count} addin(s) uninstalled. Please restart Clarion."
-                : $"Errors: {string.Join("; ", failed)}";
             if (failed.Count > 0)
             {
                 _lastError               = string.Join(Environment.NewLine, failed);
+                _statusLabel.Text        = $"Errors: {string.Join("; ", failed)}";
                 _copyErrorButton.Visible = true;
             }
+            else if (anyStaged)
+                _statusLabel.Text = "Uninstall staged — restart Clarion to complete.";
+            else
+                _statusLabel.Text = $"{addins.Count} addin(s) uninstalled. Please restart Clarion.";
             OnAddinSelected(null, EventArgs.Empty);
         }
 
