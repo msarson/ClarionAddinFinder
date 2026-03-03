@@ -48,6 +48,7 @@ File: `registry.json`
       "license": "MIT",
       "category": "Source Control",
       "version": "1.0.7",
+      "targetFramework": "net40",
       "clarionMinVersion": "11",
       "downloadUrl": "https://github.com/msarson/Clarion-GitPane/releases/download/v1.0.7/GitPane.dll",
       "addinFileUrl": "https://github.com/msarson/Clarion-GitPane/releases/download/v1.0.7/GitPane.addin",
@@ -146,6 +147,22 @@ The AddinFinder is itself distributed as a GitHub Release:
 - [ ] Uninstall support (delete files, remove from `installed.json`)
 - [ ] Categories / filtering
 - [ ] Changelog viewer (fetch markdown, render as plain text)
+
+---
+
+## .NET Framework Compatibility
+
+Clarion runs on **CLR v4** (the .NET Framework 4.x runtime). Addin compatibility:
+
+| Target framework | Compatible? | Notes |
+|-----------------|-------------|-------|
+| `net40` | ✅ Yes | Guaranteed to work everywhere |
+| `net45` – `net48` | ✅ Yes (modern machines) | CLR v4 supports all 4.x versions. Modern Windows (10/11) ships with net48. Risk only on very old machines with only net40 installed. |
+| `net5` / `net6` / `net8` | ❌ No | CoreCLR — completely different runtime, cannot load in Clarion |
+
+The registry `targetFramework` field allows the addin finder to:
+- Warn or block install if the addin targets net5+ (incompatible)
+- Warn if addin targets >net40 and the machine may not have that framework version
 
 ---
 
