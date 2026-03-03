@@ -53,8 +53,12 @@ namespace AddinFinder
 
         private void SetPadTitle()
         {
-            var v = Assembly.GetExecutingAssembly().GetName().Version;
-            string title = $"Addin Finder v{v.Major}.{v.Minor}.{v.Build}";
+            // Read from disk (FileVersionInfo) not the in-memory assembly version.
+            // After a self-update apply, the disk has the new version even though
+            // the old assembly is still loaded — this shows the correct version.
+            string asmPath = typeof(AddinFinderPad).Assembly.Location;
+            var    fvi     = System.Diagnostics.FileVersionInfo.GetVersionInfo(asmPath);
+            string title   = $"Addin Finder v{fvi.FileMajorPart}.{fvi.FileMinorPart}.{fvi.FileBuildPart}";
             Control parent = _contentPanel.Parent;
             while (parent != null)
             {
