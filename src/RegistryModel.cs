@@ -14,7 +14,7 @@ namespace AddinFinder
         public string Category      { get; set; } = "";
         public string Version       { get; set; } = "";
         public string TargetFramework { get; set; } = "";
-        public string DownloadUrl   { get; set; } = "";
+        public List<string> DownloadUrls { get; set; } = new List<string>();
         public string AddinFileUrl  { get; set; } = "";
         public string HomepageUrl   { get; set; } = "";
         public string ChangelogUrl  { get; set; } = "";

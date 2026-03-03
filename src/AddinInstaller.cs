@@ -21,7 +21,11 @@ namespace AddinFinder
             string folder = Path.Combine(_addinsRoot, addin.Id);
             Directory.CreateDirectory(folder);
 
-            Download(addin.DownloadUrl,  Path.Combine(folder, addin.Id + ".dll"));
+            foreach (string url in addin.DownloadUrls)
+            {
+                string fileName = Path.GetFileName(new Uri(url).LocalPath);
+                Download(url, Path.Combine(folder, fileName));
+            }
             Download(addin.AddinFileUrl, Path.Combine(folder, addin.Id + ".addin"));
 
             _store.MarkInstalled(addin.Id, addin.Version);

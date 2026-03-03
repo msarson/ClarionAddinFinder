@@ -62,7 +62,7 @@ namespace AddinFinder
             Category        = S(a, "category"),
             Version         = S(a, "version"),
             TargetFramework = S(a, "targetFramework"),
-            DownloadUrl     = S(a, "downloadUrl"),
+            DownloadUrls    = StrList(a, "downloadUrls"),
             AddinFileUrl    = S(a, "addinFileUrl"),
             HomepageUrl     = S(a, "homepageUrl"),
             ChangelogUrl    = S(a, "changelogUrl"),
@@ -70,5 +70,14 @@ namespace AddinFinder
 
         private static string S(Dictionary<string, object> d, string key)
             => d.TryGetValue(key, out var v) ? v?.ToString() ?? "" : "";
+
+        private static List<string> StrList(Dictionary<string, object> d, string key)
+        {
+            var result = new List<string>();
+            if (d.TryGetValue(key, out var v) && v is System.Collections.ArrayList list)
+                foreach (var item in list)
+                    if (item != null) result.Add(item.ToString());
+            return result;
+        }
     }
 }
