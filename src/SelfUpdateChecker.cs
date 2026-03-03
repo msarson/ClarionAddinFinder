@@ -49,8 +49,17 @@ namespace AddinFinder
                 if (lastEx != null || json == null) return null;
 
                 var info    = Parse(json);
-                var running = Assembly.GetExecutingAssembly().GetName().Version;
-                return (info != null && info.AvailableVersion > running) ? info : null;
+                if (info == null) return null;
+
+                // Compare against the DISK file version, not the in-memory assembly version.
+                // After ApplyPendingUpdates runs at startup, the disk already has the new DLL
+                // even though the old version is still loaded in memory. This means one restart
+                // is sufficient — disk version matches latest so no banner fires on restart 1.
+                string asmPath    = typeof(SelfUpdateChecker).Assembly.Location;
+                var    diskVer    = System.Diagnostics.FileVersionInfo.GetVersionInfo(asmPath);
+                var    diskVersion = new Version(diskVer.FileMajorPart, diskVer.FileMinorPart, diskVer.FileBuildPart);
+
+                return info.AvailableVersion > diskVersion ? info : null;
             }
             catch { return null; }
         }

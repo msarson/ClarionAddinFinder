@@ -351,8 +351,8 @@ namespace AddinFinder
                     }
                     else
                     {
-                        _statusLabel.Text = "Addin Finder update staged — restart Clarion twice to complete.";
-                        ShowRestartReminder(new[] { "Addin Finder" }, RestartReason.SelfUpdate);
+                        _statusLabel.Text = "Addin Finder update staged — restart Clarion to complete.";
+                        ShowRestartReminder(new[] { "Addin Finder" }, RestartReason.StagedUpdate);
                     }
                 }));
             });
