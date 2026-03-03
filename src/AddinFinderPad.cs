@@ -222,12 +222,15 @@ namespace AddinFinder
                         _copyErrorButton.Visible = true;
                     }
                     else if (anyStagedUpdate)
+                    {
                         _statusLabel.Text = "Update staged — restart Clarion to complete.";
+                        ShowRestartReminder(addins.Select(a => a.Name).ToArray(), RestartReason.StagedUpdate);
+                    }
                     else
                     {
-                        string names = string.Join(", ", addins.Select(a => a.Name));
+                        string[] names = addins.Select(a => a.Name).ToArray();
                         _statusLabel.Text = $"{addins.Count} addin(s) installed. Please restart Clarion to activate.";
-                        ShowRestartReminder(names);
+                        ShowRestartReminder(names, isUpdate ? RestartReason.Updated : RestartReason.Installed);
                     }
                     OnAddinSelected(null, EventArgs.Empty);
                     SetButtons(true);
@@ -260,6 +263,7 @@ namespace AddinFinder
             }
             _installedAddins = _installedStore.Load();
             PopulateList();
+            string[] addinNameArr = addins.Select(a => a.Name).ToArray();
             if (failed.Count > 0)
             {
                 _lastError               = string.Join(Environment.NewLine, failed);
@@ -267,19 +271,22 @@ namespace AddinFinder
                 _copyErrorButton.Visible = true;
             }
             else if (anyStaged)
+            {
                 _statusLabel.Text = "Uninstall staged — restart Clarion to complete.";
+                ShowRestartReminder(addinNameArr, RestartReason.StagedRemoval);
+            }
             else
             {
                 _statusLabel.Text = $"{addins.Count} addin(s) uninstalled. Please restart Clarion.";
-                ShowRestartReminder(string.Join(", ", addins.Select(a => a.Name)));
+                ShowRestartReminder(addinNameArr, RestartReason.Removed);
             }
             OnAddinSelected(null, EventArgs.Empty);
         }
 
-        private void ShowRestartReminder(string addinNames)
+        private void ShowRestartReminder(string[] addinNames, RestartReason reason)
         {
             if (_settings.SuppressRestartReminder) return;
-            using (var dlg = new RestartReminderDialog(addinNames))
+            using (var dlg = new RestartReminderDialog(addinNames, reason))
             {
                 dlg.ShowDialog(_contentPanel.FindForm());
                 if (dlg.DontShowAgain)
