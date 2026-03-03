@@ -13,6 +13,8 @@ namespace AddinFinder
         private ToolStrip       _toolStrip;
         private ToolStripButton _refreshButton;
         private SplitContainer  _mainSplitter;
+        private Panel           _listPanel;
+        private TabControl      _filterTabs;
         private ListView        _addinListView;
         private Panel           _detailPanel;
         private Label           _detailName;
@@ -34,6 +36,8 @@ namespace AddinFinder
             _toolStrip      = new ToolStrip();
             _refreshButton  = new ToolStripButton();
             _mainSplitter   = new SplitContainer();
+            _listPanel      = new Panel();
+            _filterTabs     = new TabControl();
             _addinListView  = new ListView();
             _detailPanel    = new Panel();
             _detailName     = new Label();
@@ -66,11 +70,21 @@ namespace AddinFinder
             _statusLabel.Padding   = new Padding(6, 0, 0, 0);
             _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
 
+            // ── Filter tabs ───────────────────────────────────────────────
+            _filterTabs.Dock        = DockStyle.Top;
+            _filterTabs.Appearance  = TabAppearance.FlatButtons;
+            _filterTabs.ItemSize    = new Size(70, 22);
+            _filterTabs.SizeMode    = TabSizeMode.Fixed;
+            _filterTabs.Height      = 26;
+            _filterTabs.TabPages.Add("tabAll",       "All");
+            _filterTabs.TabPages.Add("tabInstalled", "Installed");
+            _filterTabs.SelectedIndexChanged += OnFilterTabChanged;
+
             // ── ListView (top pane) ───────────────────────────────────────
             _addinListView.Dock          = DockStyle.Fill;
             _addinListView.View          = View.Details;
             _addinListView.FullRowSelect = true;
-            _addinListView.MultiSelect   = false;
+            _addinListView.MultiSelect   = true;
             _addinListView.HideSelection = false;
             _addinListView.Font          = new Font(SystemFonts.DefaultFont.FontFamily, 9f);
             _addinListView.Columns.Add("Name",     160);
@@ -79,6 +93,11 @@ namespace AddinFinder
             _addinListView.Columns.Add("Version",   65);
             _addinListView.Columns.Add("Status",   100);
             _addinListView.SelectedIndexChanged += OnAddinSelected;
+
+            // listPanel wraps tabs + list (Fill first, Top second)
+            _listPanel.Dock = DockStyle.Fill;
+            _listPanel.Controls.Add(_addinListView); // Fill
+            _listPanel.Controls.Add(_filterTabs);    // Top
 
             // ── Detail panel (bottom pane) ────────────────────────────────
             // Name (large)
@@ -162,7 +181,7 @@ namespace AddinFinder
             // ── SplitContainer ────────────────────────────────────────────
             _mainSplitter.Dock        = DockStyle.Fill;
             _mainSplitter.Orientation = Orientation.Horizontal;
-            _mainSplitter.Panel1.Controls.Add(_addinListView);
+            _mainSplitter.Panel1.Controls.Add(_listPanel);
             _mainSplitter.Panel2.Controls.Add(_detailPanel);
             _detailPanel.Dock = DockStyle.Fill;
 

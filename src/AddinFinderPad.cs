@@ -21,6 +21,8 @@ namespace AddinFinder
         private List<InstalledAddin>   _installedAddins = new List<InstalledAddin>();
         private RegistryAddin?         _selectedAddin;
 
+        private bool IsInstalledTabActive => _filterTabs.SelectedIndex == 1;
+
         public AddinFinderPad()
         {
             InitializeComponent();
@@ -37,6 +39,10 @@ namespace AddinFinder
                     _mainSplitter.SplitterDistance = (int)(_mainSplitter.Height * 0.6);
             };
         }
+
+        // ── Filter tab ────────────────────────────────────────────────────
+
+        private void OnFilterTabChanged(object? sender, EventArgs e) => PopulateList();
 
         // ── Refresh ──────────────────────────────────────────────────────
 
@@ -79,7 +85,11 @@ namespace AddinFinder
             _addinListView.BeginUpdate();
             _addinListView.Items.Clear();
 
-            foreach (var addin in _registryAddins)
+            var addins = IsInstalledTabActive
+                ? _registryAddins.Where(a => GetStatus(a) == AddinStatus.Installed || GetStatus(a) == AddinStatus.UpdateAvailable).ToList()
+                : _registryAddins;
+
+            foreach (var addin in addins)
             {
                 var status = GetStatus(addin);
                 var item   = new ListViewItem(addin.Name);
@@ -97,10 +107,33 @@ namespace AddinFinder
 
         private void OnAddinSelected(object? sender, EventArgs e)
         {
-            if (_addinListView.SelectedItems.Count == 0) { ClearDetail(); return; }
-            _selectedAddin = _addinListView.SelectedItems[0].Tag as RegistryAddin;
-            if (_selectedAddin == null) return;
+            var selected = GetSelectedAddins();
 
+            if (selected.Count == 0) { ClearDetail(); return; }
+
+            if (selected.Count > 1)
+            {
+                // Multi-select: show summary, aggregate buttons
+                _selectedAddin = null;
+                _detailName.Text        = $"{selected.Count} addins selected";
+                _detailAuthor.Text      = "";
+                _detailVersion.Text     = "";
+                _detailDescription.Text = string.Join(", ", selected.Select(a => a.Name));
+                _detailHomepage.Text    = "";
+                _detailChangelog.Text   = "";
+
+                bool anyInstallable  = selected.Any(a => GetStatus(a) == AddinStatus.NotInstalled);
+                bool anyUpdatable    = selected.Any(a => GetStatus(a) == AddinStatus.UpdateAvailable);
+                bool anyUninstallable = selected.Any(a => GetStatus(a) == AddinStatus.Installed || GetStatus(a) == AddinStatus.UpdateAvailable);
+
+                _installButton.Enabled   = anyInstallable && _installer != null;
+                _updateButton.Enabled    = anyUpdatable   && _installer != null;
+                _uninstallButton.Enabled = anyUninstallable;
+                return;
+            }
+
+            // Single select
+            _selectedAddin = selected[0];
             var status = GetStatus(_selectedAddin);
             _detailName.Text        = _selectedAddin.Name;
             _detailAuthor.Text      = $"by {_selectedAddin.Author}  ·  {_selectedAddin.License}  ·  {_selectedAddin.TargetFramework}";
@@ -130,57 +163,59 @@ namespace AddinFinder
 
         // ── Install / Update / Uninstall ──────────────────────────────────
 
-        private void OnInstallClick(object? sender, EventArgs e)  => RunInstall(_selectedAddin, isUpdate: false);
-        private void OnUpdateClick(object? sender, EventArgs e)   => RunInstall(_selectedAddin, isUpdate: true);
+        private void OnInstallClick(object? sender, EventArgs e)  => RunInstall(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.NotInstalled).ToList(), isUpdate: false);
+        private void OnUpdateClick(object? sender, EventArgs e)   => RunInstall(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.UpdateAvailable).ToList(), isUpdate: true);
 
-        private void RunInstall(RegistryAddin? addin, bool isUpdate)
+        private void RunInstall(List<RegistryAddin> addins, bool isUpdate)
         {
-            if (addin == null || _installer == null) return;
+            if (addins.Count == 0 || _installer == null) return;
             SetButtons(false);
-            _statusLabel.Text = $"{(isUpdate ? "Updating" : "Installing")} {addin.Name}…";
+            _statusLabel.Text = $"{(isUpdate ? "Updating" : "Installing")} {addins.Count} addin(s)…";
 
             ThreadPool.QueueUserWorkItem(_ =>
             {
-                try
+                var failed = new List<string>();
+                foreach (var addin in addins)
                 {
-                    _installer.Install(addin);
-                    _contentPanel.BeginInvoke(new Action(() =>
-                    {
-                        _installedAddins = _installedStore.Load();
-                        PopulateList();
-                        _statusLabel.Text = $"{addin.Name} installed. Please restart Clarion to activate.";
-                        OnAddinSelected(null, EventArgs.Empty);
-                    }));
+                    try   { _installer.Install(addin); }
+                    catch (Exception ex) { failed.Add($"{addin.Name}: {ex.Message}"); }
                 }
-                catch (Exception ex)
+                _contentPanel.BeginInvoke(new Action(() =>
                 {
-                    _contentPanel.BeginInvoke(new Action(() =>
-                    {
-                        _statusLabel.Text = $"Install failed: {ex.Message}";
-                        SetButtons(true);
-                    }));
-                }
+                    _installedAddins = _installedStore.Load();
+                    PopulateList();
+                    _statusLabel.Text = failed.Count == 0
+                        ? $"{addins.Count} addin(s) installed. Please restart Clarion to activate."
+                        : $"Errors: {string.Join("; ", failed)}";
+                    OnAddinSelected(null, EventArgs.Empty);
+                    SetButtons(true);
+                }));
             });
         }
 
         private void OnUninstallClick(object? sender, EventArgs e)
         {
-            if (_selectedAddin == null || _installer == null) return;
-            if (MessageBox.Show($"Uninstall {_selectedAddin.Name}?", "Confirm",
+            var addins = GetSelectedAddins()
+                .Where(a => GetStatus(a) == AddinStatus.Installed || GetStatus(a) == AddinStatus.UpdateAvailable)
+                .ToList();
+            if (addins.Count == 0 || _installer == null) return;
+
+            string names = string.Join(", ", addins.Select(a => a.Name));
+            if (MessageBox.Show($"Uninstall {names}?", "Confirm",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
-            try
+            var failed = new List<string>();
+            foreach (var addin in addins)
             {
-                _installer.Uninstall(_selectedAddin);
-                _installedAddins = _installedStore.Load();
-                PopulateList();
-                _statusLabel.Text = $"{_selectedAddin.Name} uninstalled. Please restart Clarion.";
-                OnAddinSelected(null, EventArgs.Empty);
+                try   { _installer.Uninstall(addin); }
+                catch (Exception ex) { failed.Add($"{addin.Name}: {ex.Message}"); }
             }
-            catch (Exception ex)
-            {
-                _statusLabel.Text = $"Uninstall failed: {ex.Message}";
-            }
+            _installedAddins = _installedStore.Load();
+            PopulateList();
+            _statusLabel.Text = failed.Count == 0
+                ? $"{addins.Count} addin(s) uninstalled. Please restart Clarion."
+                : $"Errors: {string.Join("; ", failed)}";
+            OnAddinSelected(null, EventArgs.Empty);
         }
 
         private void SetButtons(bool enabled)
@@ -192,6 +227,14 @@ namespace AddinFinder
         }
 
         // ── Status helpers ────────────────────────────────────────────────
+
+        private List<RegistryAddin> GetSelectedAddins()
+        {
+            var result = new List<RegistryAddin>();
+            foreach (ListViewItem item in _addinListView.SelectedItems)
+                if (item.Tag is RegistryAddin a) result.Add(a);
+            return result;
+        }
 
         private enum AddinStatus { NotInstalled, Installed, UpdateAvailable, Incompatible }
 
