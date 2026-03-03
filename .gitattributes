@@ -1,0 +1,9 @@
+# Normalise line endings to CRLF on Windows checkout
+* text=auto eol=crlf
+
+# Binary files — no line ending conversion
+*.dll binary
+*.exe binary
+*.png binary
+*.jpg binary
+*.ico binary
