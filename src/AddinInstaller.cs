@@ -151,11 +151,25 @@ namespace AddinFinder
             string tmp = dest + ".tmp";
             try
             {
-                using (var wc = new WebClient())
+                // Retry up to 3 times — GitHub CDN can transiently return 404/connection errors
+                // for newly-published releases
+                Exception? lastEx = null;
+                for (int attempt = 0; attempt < 3; attempt++)
                 {
-                    wc.Headers[HttpRequestHeader.UserAgent] = "ClarionAddinFinder/1.0";
-                    wc.DownloadFile(url, tmp);  // download to temp — dest may be locked
+                    if (attempt > 0) System.Threading.Thread.Sleep(2000 * attempt);
+                    try
+                    {
+                        using (var wc = new WebClient())
+                        {
+                            wc.Headers[HttpRequestHeader.UserAgent] = "ClarionAddinFinder/1.0";
+                            wc.DownloadFile(url, tmp);
+                        }
+                        lastEx = null;
+                        break;
+                    }
+                    catch (WebException ex) { lastEx = ex; }
                 }
+                if (lastEx != null) throw lastEx;
                 File.Copy(tmp, dest, overwrite: true);  // throws IOException if dest locked → staging kicks in
             }
             finally
