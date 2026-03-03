@@ -2,7 +2,12 @@
 
 All notable changes to Addin Finder are documented here.
 
-## [0.5.1] - 2026-03-03
+## [0.5.2] - 2026-03-03
+
+### Changed
+- Version bump to verify self-update mechanism end-to-end (baseline: 0.5.1)
+
+
 
 ### Changed
 - Version bump to verify self-update mechanism end-to-end
