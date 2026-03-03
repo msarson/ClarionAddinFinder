@@ -76,35 +76,37 @@ namespace AddinFinder
             _addinListView.Items.Clear();
             ClearDetail();
 
-            // Check for self-update in parallel with registry fetch
-            SelfUpdateChecker.CheckAsync(info =>
-            {
-                _contentPanel.BeginInvoke(new Action(() => ShowUpdateBanner(info)));
-            });
-
             ThreadPool.QueueUserWorkItem(_ =>
             {
-                try
+                // Run both fetches on the same background thread
+                Exception?      registryEx = null;
+                AddinRegistry?  registry   = null;
+                SelfUpdateInfo? updateInfo = null;
+
+                try   { registry   = _registryClient.Fetch(); }
+                catch (Exception ex) { registryEx = ex; }
+
+                try   { updateInfo = SelfUpdateChecker.Check(); }
+                catch { }
+
+                _contentPanel.BeginInvoke(new Action(() =>
                 {
-                    var registry = _registryClient.Fetch();
-                    _contentPanel.BeginInvoke(new Action(() =>
+                    if (registryEx != null)
                     {
-                        _registryAddins  = registry.Addins;
+                        _statusLabel.Text      = $"Error: {registryEx.Message}";
+                        _refreshButton.Enabled = true;
+                    }
+                    else
+                    {
+                        _registryAddins  = registry!.Addins;
                         _installedAddins = _installedStore.Load();
                         PopulateList();
-                        _statusLabel.Text        = $"{registry.Addins.Count} addin(s) available · updated {registry.Updated}";
+                        _statusLabel.Text        = $"{registry!.Addins.Count} addin(s) available · updated {registry!.Updated}";
                         _refreshButton.Enabled   = true;
                         _copyErrorButton.Visible = false;
-                    }));
-                }
-                catch (Exception ex)
-                {
-                    _contentPanel.BeginInvoke(new Action(() =>
-                    {
-                        _statusLabel.Text      = $"Error: {ex.Message}";
-                        _refreshButton.Enabled = true;
-                    }));
-                }
+                    }
+                    ShowUpdateBanner(updateInfo);
+                }));
             });
         }
 

@@ -19,47 +19,40 @@ namespace AddinFinder
             "https://raw.githubusercontent.com/msarson/ClarionAddinFinder/master/version.json";
 
         /// <summary>
-        /// Checks for a newer version of AddinFinder asynchronously.
-        /// Calls <paramref name="callback"/> on the thread pool — marshal to UI before touching controls.
+        /// Synchronously checks for a newer version. Call this on a background thread.
+        /// Returns null if no update available or if the check fails.
         /// </summary>
-        public static void CheckAsync(Action<SelfUpdateInfo?> callback)
+        public static SelfUpdateInfo? Check()
         {
-            ThreadPool.QueueUserWorkItem(_ =>
+            try
             {
-                try
+                ServicePointManager.SecurityProtocol =
+                    SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
+
+                string json = null!;
+                Exception? lastEx = null;
+                for (int attempt = 0; attempt < 3; attempt++)
                 {
-                    ServicePointManager.SecurityProtocol =
-                        SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
-
-                    string json;
-                    // Retry up to 3 times (same pattern as AddinInstaller)
-                    Exception? lastEx = null;
-                    json = null!;
-                    for (int attempt = 0; attempt < 3; attempt++)
+                    if (attempt > 0) Thread.Sleep(2000 * attempt);
+                    try
                     {
-                        if (attempt > 0) Thread.Sleep(2000 * attempt);
-                        try
+                        using (var wc = new WebClient())
                         {
-                            using (var wc = new WebClient())
-                            {
-                                wc.Headers[HttpRequestHeader.UserAgent] = "ClarionAddinFinder/0.5";
-                                json = wc.DownloadString(VersionUrl);
-                            }
-                            lastEx = null;
-                            break;
+                            wc.Headers[HttpRequestHeader.UserAgent] = "ClarionAddinFinder/0.5";
+                            json = wc.DownloadString(VersionUrl);
                         }
-                        catch (WebException ex) { lastEx = ex; }
+                        lastEx = null;
+                        break;
                     }
-                    if (lastEx != null) { callback(null); return; }
-
-                    var info = Parse(json);
-                    var running = Assembly.GetExecutingAssembly().GetName().Version;
-
-                    // Only report if strictly newer
-                    callback(info != null && info.AvailableVersion > running ? info : null);
+                    catch (WebException ex) { lastEx = ex; }
                 }
-                catch { callback(null); }
-            });
+                if (lastEx != null || json == null) return null;
+
+                var info    = Parse(json);
+                var running = Assembly.GetExecutingAssembly().GetName().Version;
+                return (info != null && info.AvailableVersion > running) ? info : null;
+            }
+            catch { return null; }
         }
 
         private static SelfUpdateInfo? Parse(string json)
