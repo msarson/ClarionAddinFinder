@@ -42,7 +42,7 @@ namespace AddinFinder
                         {
                             using (var wc = new WebClient())
                             {
-                                wc.Headers[HttpRequestHeader.UserAgent] = "ClarionAddinFinder/1.0";
+                                wc.Headers[HttpRequestHeader.UserAgent] = "ClarionAddinFinder/0.5";
                                 json = wc.DownloadString(VersionUrl);
                             }
                             lastEx = null;
