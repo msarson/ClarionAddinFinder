@@ -33,10 +33,17 @@ namespace AddinFinder
 
         private void SetSplitterDistance()
         {
+            bool firstShow = true;
             _contentPanel.VisibleChanged += (s, e) =>
             {
-                if (_contentPanel.Visible && _mainSplitter.Height > 0)
+                if (!_contentPanel.Visible) return;
+                if (_mainSplitter.Height > 0)
                     _mainSplitter.SplitterDistance = (int)(_mainSplitter.Height * 0.6);
+                if (firstShow)
+                {
+                    firstShow = false;
+                    OnRefreshClick(null, EventArgs.Empty);
+                }
             };
         }
 
