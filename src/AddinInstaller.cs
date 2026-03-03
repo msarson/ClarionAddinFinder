@@ -8,7 +8,9 @@ namespace AddinFinder
     /// <summary>Downloads and installs addin files into the Clarion addins folder.</summary>
     public class AddinInstaller
     {
-        private const string PendingFolder = ".pending";
+        private static readonly string StagingRoot =
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                         "ClarionAddinFinder", "pending");
 
         private readonly string _addinsRoot;
         private readonly InstalledAddinStore _store;
@@ -26,26 +28,26 @@ namespace AddinFinder
         public int ApplyPendingUpdates()
         {
             int applied = 0;
-            if (!Directory.Exists(_addinsRoot)) return 0;
+            if (!Directory.Exists(StagingRoot)) return 0;
 
-            foreach (string addinDir in Directory.GetDirectories(_addinsRoot))
+            foreach (string stagingDir in Directory.GetDirectories(StagingRoot))
             {
-                string pending = Path.Combine(addinDir, PendingFolder);
-                if (!Directory.Exists(pending)) continue;
+                string addinId  = Path.GetFileName(stagingDir);
+                string addinDir = Path.Combine(_addinsRoot, addinId);
 
                 try
                 {
-                    foreach (string file in Directory.GetFiles(pending, "*", SearchOption.AllDirectories))
+                    foreach (string file in Directory.GetFiles(stagingDir, "*", SearchOption.AllDirectories))
                     {
-                        string relative = file.Substring(pending.Length + 1);
-                        string dest = Path.Combine(addinDir, relative);
+                        string relative = file.Substring(stagingDir.Length + 1);
+                        string dest     = Path.Combine(addinDir, relative);
                         Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
                         File.Copy(file, dest, overwrite: true);
                     }
-                    Directory.Delete(pending, recursive: true);
+                    Directory.Delete(stagingDir, recursive: true);
                     applied++;
                 }
-                catch { /* leave pending in place if still locked */ }
+                catch { /* leave staging in place if still locked */ }
             }
             return applied;
         }
@@ -63,9 +65,9 @@ namespace AddinFinder
             }
             catch (IOException)
             {
-                // Files locked — stage to .pending for next startup
+                // Files locked — stage to AppData\ClarionAddinFinder\pending\{id}\ for next startup
                 staged = true;
-                string pending = Path.Combine(folder, PendingFolder);
+                string pending = Path.Combine(StagingRoot, addin.Id);
                 Directory.CreateDirectory(pending);
                 WriteFiles(addin, pending);
             }
