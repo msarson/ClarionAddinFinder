@@ -16,7 +16,7 @@ namespace AddinFinder
     internal class SelfUpdateChecker
     {
         private const string VersionUrl =
-            "https://raw.githubusercontent.com/msarson/ClarionAddinFinder/main/version.json";
+            "https://raw.githubusercontent.com/msarson/ClarionAddinFinder/master/version.json";
 
         /// <summary>
         /// Checks for a newer version of AddinFinder asynchronously.
