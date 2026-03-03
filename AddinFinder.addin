@@ -16,7 +16,6 @@
     <Pad id="AddinFinder"
          category="Main"
          title="Addin Finder"
-         icon="AddinFinder.AddinFinderIcon"
          shortcut="Control|Alt|A"
          class="AddinFinder.AddinFinderPad"/>
   </Path>
