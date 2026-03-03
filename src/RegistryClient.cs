@@ -10,10 +10,12 @@ namespace AddinFinder
     public class RegistryClient
     {
         private const string RegistryUrl =
-            "https://raw.githubusercontent.com/msarson/clarion-addin-registry/main/registry.json";
+            "https://raw.githubusercontent.com/msarson/clarion-addin-registry/master/registry.json";
 
         public AddinRegistry Fetch()
         {
+            // .NET 4.x defaults to TLS 1.0; GitHub requires TLS 1.2+
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
             using (var wc = new WebClient())
             {
                 wc.Encoding = Encoding.UTF8;

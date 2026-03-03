@@ -42,6 +42,7 @@ namespace AddinFinder
         private static void Download(string url, string dest)
         {
             if (string.IsNullOrEmpty(url)) return;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
             using (var wc = new WebClient())
             {
                 wc.Headers[HttpRequestHeader.UserAgent] = "ClarionAddinFinder/1.0";
