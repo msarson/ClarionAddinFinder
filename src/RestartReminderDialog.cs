@@ -3,7 +3,7 @@ using System.Windows.Forms;
 
 namespace AddinFinder
 {
-    internal enum RestartReason { Installed, Updated, Removed, StagedUpdate, StagedRemoval }
+    internal enum RestartReason { Installed, Updated, Removed, StagedUpdate, StagedRemoval, SelfUpdate }
 
     /// <summary>
     /// Informs the user that a Clarion restart is needed to activate addin changes.
@@ -129,6 +129,10 @@ namespace AddinFinder
                     return plural
                         ? $"{list} will be fully removed the next time the Clarion IDE starts."
                         : $"{list} will be fully removed the next time the Clarion IDE starts.";
+                case RestartReason.SelfUpdate:
+                    return $"The {list} update has been downloaded. Because {list} is already loaded, " +
+                           $"two restarts are required — the first applies the update to disk, " +
+                           $"the second runs the new version.";
                 default:
                     return $"Please restart the Clarion IDE for changes to {list} to take effect.";
             }
