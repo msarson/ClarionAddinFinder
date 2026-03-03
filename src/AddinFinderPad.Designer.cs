@@ -144,12 +144,12 @@ namespace AddinFinder
             _detailHomepage.AutoSize  = true;
             _detailHomepage.Text      = "";
             _detailHomepage.Location  = new Point(6, 4);
-            _detailHomepage.LinkClicked += (s, e) => OpenUrl(_detailHomepage.Text);
+            _detailHomepage.LinkClicked += (s, e) => OpenUrl(_detailHomepage.Tag as string ?? "");
 
             _detailChangelog.AutoSize = true;
             _detailChangelog.Text     = "";
             _detailChangelog.Location = new Point(120, 4);
-            _detailChangelog.LinkClicked += (s, e) => OpenUrl(_detailChangelog.Text);
+            _detailChangelog.LinkClicked += (s, e) => OpenUrl(_detailChangelog.Tag as string ?? "");
 
             linkPanel.Controls.Add(_detailHomepage);
             linkPanel.Controls.Add(_detailChangelog);

@@ -152,7 +152,9 @@ namespace AddinFinder
             _detailDescription.Text = _selectedAddin.Description +
                 (!string.IsNullOrEmpty(_selectedAddin.UpstreamUrl) ? $"\r\n\r\nFork of: {_selectedAddin.UpstreamUrl}" : "");
             _detailHomepage.Text    = string.IsNullOrEmpty(_selectedAddin.HomepageUrl) ? "" : "Homepage";
+            _detailHomepage.Tag     = _selectedAddin.HomepageUrl;
             _detailChangelog.Text   = string.IsNullOrEmpty(_selectedAddin.ChangelogUrl) ? "" : "Changelog";
+            _detailChangelog.Tag    = _selectedAddin.ChangelogUrl;
 
             _installButton.Enabled   = status == AddinStatus.NotInstalled && _installer != null;
             _updateButton.Enabled    = status == AddinStatus.UpdateAvailable && _installer != null;
@@ -168,7 +170,9 @@ namespace AddinFinder
             _detailVersion.Text      = "";
             _detailDescription.Text  = "";
             _detailHomepage.Text     = "";
+            _detailHomepage.Tag      = null;
             _detailChangelog.Text    = "";
+            _detailChangelog.Tag     = null;
             _installButton.Enabled   = false;
             _updateButton.Enabled    = false;
             _uninstallButton.Enabled = false;
