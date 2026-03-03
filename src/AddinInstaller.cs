@@ -111,6 +111,19 @@ namespace AddinFinder
             return true;
         }
 
+        /// <summary>
+        /// Stages a self-update of AddinFinder. Always staged since the DLL is always locked.
+        /// Downloads to %APPDATA%\ClarionAddinFinder\pending\AddinFinder\ for ApplyPendingUpdates to handle.
+        /// </summary>
+        public static void StageSelfUpdate(SelfUpdateInfo info)
+        {
+            string pending = Path.Combine(StagingRoot, "AddinFinder");
+            Directory.CreateDirectory(pending);
+            Download(info.DownloadUrl,    Path.Combine(pending, "AddinFinder.dll"));
+            if (!string.IsNullOrEmpty(info.AddinFileUrl))
+                Download(info.AddinFileUrl, Path.Combine(pending, "AddinFinder.addin"));
+        }
+
         private void WriteFiles(RegistryAddin addin, string dest)
         {
             if (!string.IsNullOrEmpty(addin.DownloadZipUrl))

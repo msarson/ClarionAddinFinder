@@ -10,6 +10,7 @@ namespace AddinFinder
         #region Control Declarations
 
         private Panel           _contentPanel;
+        private Panel           _updateBanner;
         private ToolStrip       _toolStrip;
         private ToolStripButton _refreshButton;
         private ToolStripButton _copyErrorButton;
@@ -35,6 +36,7 @@ namespace AddinFinder
         private void InitializeComponent()
         {
             _contentPanel   = new Panel();
+            _updateBanner   = new Panel();
             _toolStrip      = new ToolStrip();
             _refreshButton  = new ToolStripButton();
             _copyErrorButton = new ToolStripButton();
@@ -54,6 +56,57 @@ namespace AddinFinder
             _uninstallButton = new Button();
             _reinstallButton = new Button();
             _statusLabel    = new Label();
+
+            // ── Self-update banner (hidden until update available) ────────
+            _updateBanner.Dock      = DockStyle.Top;
+            _updateBanner.Height    = 30;
+            _updateBanner.BackColor = Color.FromArgb(255, 244, 206);  // soft amber
+            _updateBanner.Visible   = false;
+
+            var bannerIcon = new Label
+            {
+                Text      = "🔔",
+                Font      = new Font(SystemFonts.DefaultFont.FontFamily, 9f),
+                AutoSize  = true,
+                Location  = new Point(8, 7)
+            };
+
+            var bannerText = new Label
+            {
+                Name      = "bannerText",
+                Text      = "",
+                Font      = new Font(SystemFonts.DefaultFont.FontFamily, 8.5f),
+                AutoSize  = true,
+                Location  = new Point(28, 8)
+            };
+
+            var bannerButton = new Button
+            {
+                Name      = "bannerButton",
+                Text      = "Update Now",
+                Font      = new Font(SystemFonts.DefaultFont.FontFamily, 8f),
+                Size      = new Size(82, 20),
+                Location  = new Point(340, 5),
+                FlatStyle = FlatStyle.Flat
+            };
+            bannerButton.FlatAppearance.BorderColor = Color.FromArgb(200, 160, 0);
+
+            var bannerDismiss = new Button
+            {
+                Text      = "✕",
+                Font      = new Font(SystemFonts.DefaultFont.FontFamily, 8f),
+                Size      = new Size(20, 20),
+                Location  = new Point(414, 5),
+                FlatStyle = FlatStyle.Flat,
+                TabStop   = false
+            };
+            bannerDismiss.FlatAppearance.BorderSize = 0;
+            bannerDismiss.Click += (s, e) => _updateBanner.Visible = false;
+
+            _updateBanner.Controls.Add(bannerIcon);
+            _updateBanner.Controls.Add(bannerText);
+            _updateBanner.Controls.Add(bannerButton);
+            _updateBanner.Controls.Add(bannerDismiss);
 
             // ── ToolStrip ────────────────────────────────────────────────
             _refreshButton.Text         = "⟳ Refresh";
@@ -209,6 +262,7 @@ namespace AddinFinder
             _contentPanel.AutoScroll = false;
             _contentPanel.Controls.Add(_mainSplitter);  // Fill
             _contentPanel.Controls.Add(_statusLabel);   // Top
+            _contentPanel.Controls.Add(_updateBanner);  // Top
             _contentPanel.Controls.Add(_toolStrip);     // Top (topmost)
         }
     }

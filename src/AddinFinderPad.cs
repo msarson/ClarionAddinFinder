@@ -63,6 +63,12 @@ namespace AddinFinder
             _addinListView.Items.Clear();
             ClearDetail();
 
+            // Check for self-update in parallel with registry fetch
+            SelfUpdateChecker.CheckAsync(info =>
+            {
+                _contentPanel.BeginInvoke(new Action(() => ShowUpdateBanner(info)));
+            });
+
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 try
@@ -281,6 +287,60 @@ namespace AddinFinder
                 ShowRestartReminder(addinNameArr, RestartReason.Removed);
             }
             OnAddinSelected(null, EventArgs.Empty);
+        }
+
+        // ── Self-update banner ────────────────────────────────────────────
+
+        private SelfUpdateInfo? _pendingSelfUpdate;
+
+        private void ShowUpdateBanner(SelfUpdateInfo? info)
+        {
+            if (info == null) return;
+            _pendingSelfUpdate = info;
+
+            var txt = _updateBanner.Controls["bannerText"] as System.Windows.Forms.Label;
+            var btn = _updateBanner.Controls["bannerButton"] as Button;
+            if (txt != null) txt.Text = $"Addin Finder v{info.AvailableVersion} is available";
+            if (btn != null)
+            {
+                // Remove old handlers then attach fresh
+                btn.Click -= OnSelfUpdateClick;
+                btn.Click += OnSelfUpdateClick;
+            }
+            _updateBanner.Visible = true;
+        }
+
+        private void OnSelfUpdateClick(object? sender, EventArgs e)
+        {
+            if (_pendingSelfUpdate == null) return;
+            _updateBanner.Visible  = false;
+            _refreshButton.Enabled = false;
+            _statusLabel.Text      = "Downloading Addin Finder update…";
+
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                string? error = null;
+                try { AddinInstaller.StageSelfUpdate(_pendingSelfUpdate); }
+                catch (Exception ex)
+                {
+                    error = ex.InnerException?.Message ?? ex.Message;
+                }
+                _contentPanel.BeginInvoke(new Action(() =>
+                {
+                    _refreshButton.Enabled = true;
+                    if (error != null)
+                    {
+                        _lastError               = error;
+                        _statusLabel.Text        = $"Self-update failed: {error}";
+                        _copyErrorButton.Visible = true;
+                    }
+                    else
+                    {
+                        _statusLabel.Text = "Addin Finder update staged — restart Clarion to complete.";
+                        ShowRestartReminder(new[] { "Addin Finder" }, RestartReason.StagedUpdate);
+                    }
+                }));
+            });
         }
 
         private void ShowRestartReminder(string[] addinNames, RestartReason reason)
