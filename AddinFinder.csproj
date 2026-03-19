@@ -56,4 +56,30 @@
     <Message Text="version.json updated to $(Version)" Importance="high" />
   </Target>
 
+  <!--
+    Release target — run with: dotnet build -c Release /p:DoRelease=true
+    1. Packages the zip
+    2. Commits version.json + tags + pushes
+    3. Creates the GitHub release with assets attached
+    Requires: gh CLI authenticated, git remote configured
+  -->
+  <Target Name="CreateRelease" AfterTargets="UpdateVersionJson" Condition="'$(DoRelease)' == 'true' AND '$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <ZipPath>$(OutputPath)AddinFinder-v$(Version).zip</ZipPath>
+    </PropertyGroup>
+
+    <Exec Command="powershell -NoProfile -Command &quot;Compress-Archive -Path '$(OutputPath)AddinFinder.dll','$(MSBuildProjectDirectory)\AddinFinder.addin' -DestinationPath '$(ZipPath)' -Force&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
+
+    <Exec Command="git add version.json" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Exec Command="git diff --cached --quiet version.json || git commit -m &quot;chore: release v$(Version) [skip ci]&quot;" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Exec Command="git push" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Exec Command="git tag v$(Version)" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Exec Command="git push origin v$(Version)" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Exec Command="gh release create v$(Version) &quot;$(OutputPath)AddinFinder.dll&quot; &quot;$(MSBuildProjectDirectory)\AddinFinder.addin&quot; &quot;$(ZipPath)&quot; --title &quot;v$(Version)&quot; --notes-file &quot;$(MSBuildProjectDirectory)\CHANGELOG.md&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
+
+    <Message Text="Released v$(Version) to GitHub." Importance="high" />
+  </Target>
+
 </Project>
