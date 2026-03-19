@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      - name: Extract version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $ver = $tag.TrimStart('v')
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Verify csproj version matches tag
+        shell: pwsh
+        run: |
+          $csprojVer = (Select-Xml -Path AddinFinder.csproj -XPath '//Version').Node.InnerText
+          $tagVer     = "${{ steps.version.outputs.VERSION }}"
+          if ($csprojVer -ne $tagVer) {
+            Write-Error "Tag is v$tagVer but <Version> in csproj is $csprojVer — update the csproj first."
+            exit 1
+          }
+
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Create zip
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.version.outputs.VERSION }}"
+          Compress-Archive -Path bin\Release\net48\AddinFinder.dll, AddinFinder.addin `
+                           -DestinationPath bin\Release\net48\AddinFinder-v$ver.zip -Force
+
+      - name: Commit updated version.json
+        shell: pwsh
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+          git checkout master
+          git add version.json
+          git diff --cached --quiet && echo "version.json unchanged" || git commit -m "chore: update version.json to ${{ steps.version.outputs.VERSION }} [skip ci]"
+          git push origin master
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "v${{ steps.version.outputs.VERSION }}"
+          body_path: CHANGELOG.md
+          files: |
+            bin/Release/net48/AddinFinder.dll
+            AddinFinder.addin
+            bin/Release/net48/AddinFinder-v${{ steps.version.outputs.VERSION }}.zip
