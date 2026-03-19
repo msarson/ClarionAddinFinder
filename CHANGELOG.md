@@ -2,6 +2,11 @@
 
 All notable changes to Addin Finder are documented here.
 
+## [0.5.16] - 2026-03-19
+
+### Build
+- Release process automated via MSBuild target — `dotnet build -c Release /p:DoRelease=true` builds, commits `version.json`, tags, pushes, and creates the GitHub release in one step
+
 ## [0.5.15] - 2026-03-19
 
 ### Build
