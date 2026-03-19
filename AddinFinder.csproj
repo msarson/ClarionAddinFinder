@@ -6,10 +6,14 @@
     <OutputType>Library</OutputType>
     <AssemblyName>AddinFinder</AssemblyName>
     <RootNamespace>AddinFinder</RootNamespace>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <UseWindowsForms>true</UseWindowsForms>
     <Platforms>x86</Platforms>
     <PlatformTarget>x86</PlatformTarget>
+    <!-- Single source of truth for version — SDK auto-generates AssemblyVersion/FileVersion from this -->
+    <Version>0.5.14</Version>
+    <Product>AddinFinder</Product>
+    <Description>Addin manager for the Clarion IDE</Description>
+    <Company>msarson</Company>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -38,4 +42,18 @@
       <SpecificVersion>false</SpecificVersion>
     </Reference>
   </ItemGroup>
+
+  <!-- Rewrite version.json from $(Version) on every Release build so they never drift -->
+  <Target Name="UpdateVersionJson" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <VersionJsonLine Include="{" />
+      <VersionJsonLine Include="  &quot;version&quot;: &quot;$(Version)&quot;," />
+      <VersionJsonLine Include="  &quot;downloadUrl&quot;: &quot;https://github.com/msarson/ClarionAddinFinder/releases/download/v$(Version)/AddinFinder.dll&quot;," />
+      <VersionJsonLine Include="  &quot;addinFileUrl&quot;: &quot;https://github.com/msarson/ClarionAddinFinder/releases/download/v$(Version)/AddinFinder.addin&quot;" />
+      <VersionJsonLine Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(MSBuildProjectDirectory)\version.json" Lines="@(VersionJsonLine)" Overwrite="true" Encoding="UTF-8" />
+    <Message Text="version.json updated to $(Version)" Importance="high" />
+  </Target>
+
 </Project>
