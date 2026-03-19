@@ -10,7 +10,7 @@
     <Platforms>x86</Platforms>
     <PlatformTarget>x86</PlatformTarget>
     <!-- Single source of truth for version — SDK auto-generates AssemblyVersion/FileVersion from this -->
-    <Version>0.5.14</Version>
+    <Version>0.5.15</Version>
     <Product>AddinFinder</Product>
     <Description>Addin manager for the Clarion IDE</Description>
     <Company>msarson</Company>

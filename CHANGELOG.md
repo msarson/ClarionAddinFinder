@@ -2,6 +2,12 @@
 
 All notable changes to Addin Finder are documented here.
 
+## [0.5.15] - 2026-03-19
+
+### Build
+- Version is now a single source of truth in `<Version>` in the csproj — `version.json` and `AssemblyFileVersion` are both derived from it automatically on Release build
+- GitHub Actions release workflow: push a `v*.*.*` tag to build, publish `version.json` to master, and create the GitHub release atomically
+
 ## [0.5.14] - 2026-03-19
 
 ### Fixed
