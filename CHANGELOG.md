@@ -2,6 +2,14 @@
 
 All notable changes to Addin Finder are documented here.
 
+## [0.5.14] - 2026-03-19
+
+### Fixed
+- Installed addins no longer fail to load in Clarion with `FileLoadException` / `NotSupportedException` — the NTFS `Zone.Identifier` alternate data stream (Mark of the Web) is now stripped from every downloaded file immediately after install
+
+### Documentation
+- README now includes a clear note for users who hit the "Could not be loaded" error on first install, with both GUI (right-click → Unblock) and PowerShell (`Unblock-File`) remediation steps
+
 ## [0.5.13] - 2026-03-03
 
 ### Added

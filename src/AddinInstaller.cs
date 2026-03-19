@@ -166,6 +166,7 @@ namespace AddinFinder
                                 throw new InvalidOperationException($"Zip entry blocked (path traversal): {entry.FullName}");
                             Directory.CreateDirectory(Path.GetDirectoryName(entryDest)!);
                             entry.ExtractToFile(entryDest, overwrite: true);
+                            try { File.Delete(entryDest + ":Zone.Identifier"); } catch { }
                         }
                 }
                 finally
@@ -210,6 +211,7 @@ namespace AddinFinder
                 }
                 if (lastEx != null) throw lastEx;
                 File.Copy(tmp, dest, overwrite: true);  // throws IOException if dest locked → staging kicks in
+                try { File.Delete(dest + ":Zone.Identifier"); } catch { }
             }
             finally
             {
