@@ -2,6 +2,28 @@
 
 All notable changes to Addin Finder are documented here.
 
+## [0.5.17] - 2026-05-15
+
+### Added
+- **View README link** in the addin detail panel ([#2](https://github.com/msarson/ClarionAddinFinder/issues/2))
+  — opens the selected registry addin's README inside Clarion Markdown Editor v1.1.0
+  or later via reflection on `MarkdownEditorApi.OpenUrl`. No compile-time reference
+  on the editor's DLL — purely runtime lookup. Falls back to launching the homepage
+  URL in the system browser when the editor isn't installed.
+- **Changelog link** now also routes through the editor-or-browser fallback — clicking
+  Changelog renders the addin's `CHANGELOG.md` inline in the editor when available,
+  rather than always bouncing to the browser.
+
+### Fixed
+- **Empty list when the pad isn't visible at IDE startup** ([#3](https://github.com/msarson/ClarionAddinFinder/issues/3))
+  — the initial registry fetch was wired to `_contentPanel.VisibleChanged`, which only
+  fires on transitions. When the pad was created lazily on first reveal, the panel was
+  often already `Visible` by the time the handler attached, so the event never fired
+  and the list stayed empty until the user clicked Refresh. Moved the initial fetch
+  to `HandleCreated`, which is guaranteed to fire once when the control joins the
+  visual tree. `VisibleChanged` is kept for splitter sizing, which legitimately needs
+  the laid-out height.
+
 ## [0.5.16] - 2026-03-19
 
 ### Build

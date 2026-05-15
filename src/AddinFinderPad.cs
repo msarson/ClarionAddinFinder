@@ -32,23 +32,47 @@ namespace AddinFinder
             _installedAddins = _installedStore.Load();
             _installer       = TryCreateInstaller();
             SetSplitterDistance();
+            HookInitialLoad();
         }
 
+        // Splitter sizing legitimately needs the panel's height, which is only
+        // known once it's been laid out — VisibleChanged is the right signal.
         private void SetSplitterDistance()
         {
-            bool firstShow = true;
             _contentPanel.VisibleChanged += (s, e) =>
             {
-                if (!_contentPanel.Visible) return;
-                if (_mainSplitter.Height > 0)
+                if (_contentPanel.Visible && _mainSplitter.Height > 0)
                     _mainSplitter.SplitterDistance = (int)(_mainSplitter.Height * 0.6);
-                if (firstShow)
+            };
+        }
+
+        // Initial registry fetch + title — fired exactly once when the control
+        // is added to the visual tree. VisibleChanged is unreliable for this
+        // because it only fires on transitions, and when the pad is created
+        // lazily the panel may already be Visible by the time we attach.
+        private void HookInitialLoad()
+        {
+            EventHandler? onHandleCreated = null;
+            onHandleCreated = (s, e) =>
+            {
+                _contentPanel.HandleCreated -= onHandleCreated;
+                SetPadTitle();
+                OnRefreshClick(null, EventArgs.Empty);
+            };
+
+            if (_contentPanel.IsHandleCreated)
+            {
+                // Handle already exists — defer so the constructor can finish.
+                _contentPanel.BeginInvoke(new Action(() =>
                 {
-                    firstShow = false;
                     SetPadTitle();
                     OnRefreshClick(null, EventArgs.Empty);
-                }
-            };
+                }));
+            }
+            else
+            {
+                _contentPanel.HandleCreated += onHandleCreated;
+            }
         }
 
         private void SetPadTitle()
@@ -181,6 +205,8 @@ namespace AddinFinder
             _detailHomepage.Tag     = _selectedAddin.HomepageUrl;
             _detailChangelog.Text   = string.IsNullOrEmpty(_selectedAddin.ChangelogUrl) ? "" : "Changelog";
             _detailChangelog.Tag    = _selectedAddin.ChangelogUrl;
+            _detailReadme.Text      = string.IsNullOrEmpty(_selectedAddin.HomepageUrl) ? "" : "View README";
+            _detailReadme.Tag       = _selectedAddin.HomepageUrl;
 
             _installButton.Enabled   = status == AddinStatus.NotInstalled && _installer != null;
             _updateButton.Enabled    = status == AddinStatus.UpdateAvailable && _installer != null;
@@ -199,6 +225,8 @@ namespace AddinFinder
             _detailHomepage.Tag      = null;
             _detailChangelog.Text    = "";
             _detailChangelog.Tag     = null;
+            _detailReadme.Text       = "";
+            _detailReadme.Tag        = null;
             _installButton.Enabled   = false;
             _updateButton.Enabled    = false;
             _uninstallButton.Enabled = false;
@@ -433,6 +461,32 @@ namespace AddinFinder
         {
             if (!string.IsNullOrEmpty(url))
                 Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+
+        // Open a Markdown URL (README, changelog, …) inside ClarionMarkdownEditor
+        // when it's installed, otherwise fall back to launching the URL in the
+        // system browser. Pure runtime lookup — no compile-time reference on
+        // the editor's DLL.
+        private static void OpenMarkdownUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return;
+
+            try
+            {
+                var apiType = Type.GetType("ClarionMarkdownEditor.MarkdownEditorApi, ClarionMarkdownEditor");
+                var openUrl = apiType?.GetMethod("OpenUrl", BindingFlags.Public | BindingFlags.Static);
+                if (openUrl != null)
+                {
+                    openUrl.Invoke(null, new object[] { url });
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"OpenMarkdownUrl reflection failed: {ex.Message}");
+            }
+
+            OpenUrl(url);
         }
 
         private AddinInstaller? TryCreateInstaller()
