@@ -181,6 +181,8 @@ namespace AddinFinder
             _detailHomepage.Tag     = _selectedAddin.HomepageUrl;
             _detailChangelog.Text   = string.IsNullOrEmpty(_selectedAddin.ChangelogUrl) ? "" : "Changelog";
             _detailChangelog.Tag    = _selectedAddin.ChangelogUrl;
+            _detailReadme.Text      = string.IsNullOrEmpty(_selectedAddin.HomepageUrl) ? "" : "View README";
+            _detailReadme.Tag       = _selectedAddin.HomepageUrl;
 
             _installButton.Enabled   = status == AddinStatus.NotInstalled && _installer != null;
             _updateButton.Enabled    = status == AddinStatus.UpdateAvailable && _installer != null;
@@ -199,6 +201,8 @@ namespace AddinFinder
             _detailHomepage.Tag      = null;
             _detailChangelog.Text    = "";
             _detailChangelog.Tag     = null;
+            _detailReadme.Text       = "";
+            _detailReadme.Tag        = null;
             _installButton.Enabled   = false;
             _updateButton.Enabled    = false;
             _uninstallButton.Enabled = false;
@@ -433,6 +437,31 @@ namespace AddinFinder
         {
             if (!string.IsNullOrEmpty(url))
                 Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+
+        // Open the addin's README inside ClarionMarkdownEditor (if installed),
+        // otherwise fall back to launching the homepage URL in the system browser.
+        // Pure runtime lookup — no compile-time reference on the editor's DLL.
+        private static void OpenReadme(string homepageUrl)
+        {
+            if (string.IsNullOrEmpty(homepageUrl)) return;
+
+            try
+            {
+                var apiType = Type.GetType("ClarionMarkdownEditor.MarkdownEditorApi, ClarionMarkdownEditor");
+                var openUrl = apiType?.GetMethod("OpenUrl", BindingFlags.Public | BindingFlags.Static);
+                if (openUrl != null)
+                {
+                    openUrl.Invoke(null, new object[] { homepageUrl });
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"OpenReadme reflection failed: {ex.Message}");
+            }
+
+            OpenUrl(homepageUrl);
         }
 
         private AddinInstaller? TryCreateInstaller()

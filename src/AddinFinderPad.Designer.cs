@@ -23,6 +23,7 @@ namespace AddinFinder
         private Label           _detailDescription;
         private LinkLabel       _detailHomepage;
         private LinkLabel       _detailChangelog;
+        private LinkLabel       _detailReadme;
         private Label           _detailAuthor;
         private Label           _detailVersion;
         private Button          _installButton;
@@ -49,6 +50,7 @@ namespace AddinFinder
             _detailDescription = new Label();
             _detailHomepage = new LinkLabel();
             _detailChangelog = new LinkLabel();
+            _detailReadme = new LinkLabel();
             _detailAuthor   = new Label();
             _detailVersion  = new Label();
             _installButton  = new Button();
@@ -206,8 +208,14 @@ namespace AddinFinder
             _detailChangelog.Location = new Point(120, 4);
             _detailChangelog.LinkClicked += (s, e) => OpenUrl(_detailChangelog.Tag as string ?? "");
 
+            _detailReadme.AutoSize  = true;
+            _detailReadme.Text      = "";
+            _detailReadme.Location  = new Point(234, 4);
+            _detailReadme.LinkClicked += (s, e) => OpenReadme(_detailReadme.Tag as string ?? "");
+
             linkPanel.Controls.Add(_detailHomepage);
             linkPanel.Controls.Add(_detailChangelog);
+            linkPanel.Controls.Add(_detailReadme);
 
             // Action buttons row
             var buttonPanel = new Panel { Dock = DockStyle.Bottom, Height = 34, Padding = new Padding(4, 4, 4, 4) };
