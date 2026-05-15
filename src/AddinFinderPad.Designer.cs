@@ -206,12 +206,12 @@ namespace AddinFinder
             _detailChangelog.AutoSize = true;
             _detailChangelog.Text     = "";
             _detailChangelog.Location = new Point(120, 4);
-            _detailChangelog.LinkClicked += (s, e) => OpenUrl(_detailChangelog.Tag as string ?? "");
+            _detailChangelog.LinkClicked += (s, e) => OpenMarkdownUrl(_detailChangelog.Tag as string ?? "");
 
             _detailReadme.AutoSize  = true;
             _detailReadme.Text      = "";
             _detailReadme.Location  = new Point(234, 4);
-            _detailReadme.LinkClicked += (s, e) => OpenReadme(_detailReadme.Tag as string ?? "");
+            _detailReadme.LinkClicked += (s, e) => OpenMarkdownUrl(_detailReadme.Tag as string ?? "");
 
             linkPanel.Controls.Add(_detailHomepage);
             linkPanel.Controls.Add(_detailChangelog);

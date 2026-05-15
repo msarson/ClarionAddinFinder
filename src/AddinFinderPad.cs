@@ -439,12 +439,13 @@ namespace AddinFinder
                 Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
 
-        // Open the addin's README inside ClarionMarkdownEditor (if installed),
-        // otherwise fall back to launching the homepage URL in the system browser.
-        // Pure runtime lookup — no compile-time reference on the editor's DLL.
-        private static void OpenReadme(string homepageUrl)
+        // Open a Markdown URL (README, changelog, …) inside ClarionMarkdownEditor
+        // when it's installed, otherwise fall back to launching the URL in the
+        // system browser. Pure runtime lookup — no compile-time reference on
+        // the editor's DLL.
+        private static void OpenMarkdownUrl(string url)
         {
-            if (string.IsNullOrEmpty(homepageUrl)) return;
+            if (string.IsNullOrEmpty(url)) return;
 
             try
             {
@@ -452,16 +453,16 @@ namespace AddinFinder
                 var openUrl = apiType?.GetMethod("OpenUrl", BindingFlags.Public | BindingFlags.Static);
                 if (openUrl != null)
                 {
-                    openUrl.Invoke(null, new object[] { homepageUrl });
+                    openUrl.Invoke(null, new object[] { url });
                     return;
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"OpenReadme reflection failed: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"OpenMarkdownUrl reflection failed: {ex.Message}");
             }
 
-            OpenUrl(homepageUrl);
+            OpenUrl(url);
         }
 
         private AddinInstaller? TryCreateInstaller()
