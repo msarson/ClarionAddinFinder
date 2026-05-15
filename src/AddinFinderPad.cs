@@ -32,23 +32,47 @@ namespace AddinFinder
             _installedAddins = _installedStore.Load();
             _installer       = TryCreateInstaller();
             SetSplitterDistance();
+            HookInitialLoad();
         }
 
+        // Splitter sizing legitimately needs the panel's height, which is only
+        // known once it's been laid out — VisibleChanged is the right signal.
         private void SetSplitterDistance()
         {
-            bool firstShow = true;
             _contentPanel.VisibleChanged += (s, e) =>
             {
-                if (!_contentPanel.Visible) return;
-                if (_mainSplitter.Height > 0)
+                if (_contentPanel.Visible && _mainSplitter.Height > 0)
                     _mainSplitter.SplitterDistance = (int)(_mainSplitter.Height * 0.6);
-                if (firstShow)
+            };
+        }
+
+        // Initial registry fetch + title — fired exactly once when the control
+        // is added to the visual tree. VisibleChanged is unreliable for this
+        // because it only fires on transitions, and when the pad is created
+        // lazily the panel may already be Visible by the time we attach.
+        private void HookInitialLoad()
+        {
+            EventHandler? onHandleCreated = null;
+            onHandleCreated = (s, e) =>
+            {
+                _contentPanel.HandleCreated -= onHandleCreated;
+                SetPadTitle();
+                OnRefreshClick(null, EventArgs.Empty);
+            };
+
+            if (_contentPanel.IsHandleCreated)
+            {
+                // Handle already exists — defer so the constructor can finish.
+                _contentPanel.BeginInvoke(new Action(() =>
                 {
-                    firstShow = false;
                     SetPadTitle();
                     OnRefreshClick(null, EventArgs.Empty);
-                }
-            };
+                }));
+            }
+            else
+            {
+                _contentPanel.HandleCreated += onHandleCreated;
+            }
         }
 
         private void SetPadTitle()
