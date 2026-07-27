@@ -176,7 +176,7 @@ namespace AddinFinder
                 // Multi-select: show summary, aggregate buttons
                 _selectedAddin = null;
                 _detailName.Text        = $"{selected.Count} addins selected";
-                _detailAuthor.Text      = "";
+                ClearAuthorLabel();
                 _detailVersion.Text     = "";
                 _detailDescription.Text = string.Join(", ", selected.Select(a => a.Name));
                 _detailHomepage.Text    = "";
@@ -197,7 +197,7 @@ namespace AddinFinder
             _selectedAddin = selected[0];
             var status = GetStatus(_selectedAddin);
             _detailName.Text        = _selectedAddin.Name + (_selectedAddin.Fork ? "  [Fork]" : "");
-            _detailAuthor.Text      = $"by {_selectedAddin.Author}  ·  {_selectedAddin.License}  ·  {_selectedAddin.TargetFramework}";
+            SetAuthorLabel(_selectedAddin);
             _detailVersion.Text     = $"Version {_selectedAddin.Version}";
             _detailDescription.Text = _selectedAddin.Description +
                 (!string.IsNullOrEmpty(_selectedAddin.UpstreamUrl) ? $"\r\n\r\nFork of: {_selectedAddin.UpstreamUrl}" : "");
@@ -214,11 +214,36 @@ namespace AddinFinder
             _reinstallButton.Enabled = status == AddinStatus.Installed && _installer != null;
         }
 
+        // Render the "by {author} · {license} · {framework}" line, linking just
+        // the author name to authorUrl when the registry provides one.
+        private void SetAuthorLabel(RegistryAddin addin)
+        {
+            _detailAuthor.Text = $"by {addin.Author}  ·  {addin.License}  ·  {addin.TargetFramework}";
+            if (!string.IsNullOrEmpty(addin.AuthorUrl) && !string.IsNullOrEmpty(addin.Author))
+            {
+                // "by " prefix is 3 chars; link covers the author name only.
+                _detailAuthor.LinkArea = new LinkArea(3, addin.Author.Length);
+                _detailAuthor.Tag      = addin.AuthorUrl;
+            }
+            else
+            {
+                _detailAuthor.LinkArea = new LinkArea(0, 0);
+                _detailAuthor.Tag      = null;
+            }
+        }
+
+        private void ClearAuthorLabel()
+        {
+            _detailAuthor.Text     = "";
+            _detailAuthor.LinkArea = new LinkArea(0, 0);
+            _detailAuthor.Tag      = null;
+        }
+
         private void ClearDetail()
         {
             _selectedAddin           = null;
             _detailName.Text         = "";
-            _detailAuthor.Text       = "";
+            ClearAuthorLabel();
             _detailVersion.Text      = "";
             _detailDescription.Text  = "";
             _detailHomepage.Text     = "";
