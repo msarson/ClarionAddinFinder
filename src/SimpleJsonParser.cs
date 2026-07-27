@@ -67,6 +67,7 @@ namespace AddinFinder
             Name            = S(a, "name"),
             Description     = S(a, "description"),
             Author          = S(a, "author"),
+            AuthorUrl       = S(a, "authorUrl"),
             License         = S(a, "license"),
             Category        = S(a, "category"),
             Version         = S(a, "version"),

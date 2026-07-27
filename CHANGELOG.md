@@ -2,6 +2,16 @@
 
 All notable changes to Addin Finder are documented here.
 
+## [0.6.0] - 2026-07-27
+
+### Added
+- **Clickable author** in the addin detail panel — when a registry entry supplies
+  the new optional `authorUrl` field, the author name in the "by …" line becomes a
+  link to the developer's page (e.g. their GitHub profile). Entries without
+  `authorUrl` render exactly as before (plain gray text), so this is fully backward
+  compatible. Implemented by promoting the author label to a `LinkLabel` and linking
+  only the name portion via `LinkArea`.
+
 ## [0.5.17] - 2026-05-15
 
 ### Added

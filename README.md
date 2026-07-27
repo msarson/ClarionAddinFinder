@@ -13,7 +13,7 @@ A dockable addin manager for the **Clarion IDE** — discover, install, update, 
 - 🔄 **Update** installed addins — staged automatically so Clarion never crashes
 - 🗑️ **Uninstall** addins — also staged when the DLL is in use
 - 🔔 **Self-updates** — checks for a new version of Addin Finder itself on every refresh
-- ℹ️ **Detail panel** — description, author, version, homepage and changelog links
+- ℹ️ **Detail panel** — description, clickable **author** (links to the developer's page when the registry provides one), version, homepage and changelog links
 - ✅ **Restart reminder** — tells you which addins need a Clarion restart, with a "don't show again" option
 
 ---

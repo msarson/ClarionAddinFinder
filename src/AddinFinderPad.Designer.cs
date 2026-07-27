@@ -24,7 +24,7 @@ namespace AddinFinder
         private LinkLabel       _detailHomepage;
         private LinkLabel       _detailChangelog;
         private LinkLabel       _detailReadme;
-        private Label           _detailAuthor;
+        private LinkLabel       _detailAuthor;
         private Label           _detailVersion;
         private Button          _installButton;
         private Button          _updateButton;
@@ -51,7 +51,7 @@ namespace AddinFinder
             _detailHomepage = new LinkLabel();
             _detailChangelog = new LinkLabel();
             _detailReadme = new LinkLabel();
-            _detailAuthor   = new Label();
+            _detailAuthor   = new LinkLabel();
             _detailVersion  = new Label();
             _installButton  = new Button();
             _updateButton   = new Button();
@@ -175,13 +175,18 @@ namespace AddinFinder
             _detailName.Padding   = new Padding(6, 4, 0, 0);
             _detailName.Text      = "";
 
-            // Author + version row
+            // Author + version row. LinkLabel so the author name links to
+            // authorUrl when present; ForeColor is the non-link (gray) text,
+            // LinkArea is set per-selection to cover just the name.
             _detailAuthor.Dock    = DockStyle.Top;
             _detailAuthor.Height  = 18;
             _detailAuthor.Font    = new Font(SystemFonts.DefaultFont.FontFamily, 8.5f);
             _detailAuthor.ForeColor = SystemColors.GrayText;
             _detailAuthor.Padding = new Padding(6, 0, 0, 0);
             _detailAuthor.Text    = "";
+            _detailAuthor.LinkBehavior = LinkBehavior.HoverUnderline;
+            _detailAuthor.LinkArea = new LinkArea(0, 0);   // no link until an addin with authorUrl is selected
+            _detailAuthor.LinkClicked += (s, e) => OpenUrl(_detailAuthor.Tag as string ?? "");
 
             _detailVersion.Dock   = DockStyle.Top;
             _detailVersion.Height = 18;
