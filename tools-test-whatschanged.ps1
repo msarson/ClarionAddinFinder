@@ -41,16 +41,30 @@ Check 'old user, pre-dates the field -> told'     (ShouldTell '' $true) 'not tol
 Check 'already on 0.8.0 -> NOT told'              (-not (ShouldTell '0.8.0' $true)) 'told twice'
 Check 'arriving from a later build -> NOT told'   (-not (ShouldTell '0.9.0' $true)) 'told on downgrade'
 
-Write-Host "`n4. LastSeenVersion round-trips"
-$parser   = $asm.GetType('AddinFinder.SimpleJsonParser')
-$ser = $parser.GetMethod('SerialiseSettings', [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::Public)
-$des = $parser.GetMethod('ParseSettings',     [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::Public)
-$settings = $asm.CreateInstance('AddinFinder.AddinFinderSettings')
-$settings.LastSeenVersion = '0.8.0'
-$back = $des.Invoke($null, @([string]$ser.Invoke($null, @($settings))))
-Check 'survives a save and load' ($back.LastSeenVersion -eq '0.8.0') "got '$($back.LastSeenVersion)'"
-Check 'absent field reads as empty, not null' `
-    (($des.Invoke($null, @('{}'))).LastSeenVersion -eq '') 'null or wrong'
+Write-Host "`n4. LastSeenVersion round-trips, per Clarion"
+$sandbox = Join-Path $env:TEMP ('af-wc-' + [Guid]::NewGuid().ToString('N').Substring(0,8))
+$store   = Join-Path $sandbox 'store'
+New-Item -ItemType Directory -Force -Path $store | Out-Null
+
+$st   = $asm.GetType('AddinFinder.AddinFinderSettings')
+$load = $st.GetMethod('Load', [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::Public,
+                      $null, [Type[]]@([string],[string]), $null)
+
+$s11 = $load.Invoke($null, @([string]'C:\Clarion11.1', [string]$store))
+$s11.LastSeenVersion = '0.8.0'
+$s11.Save()
+
+$again = $load.Invoke($null, @([string]'C:\Clarion11.1', [string]$store))
+Check 'survives a save and load' ($again.LastSeenVersion -eq '0.8.0') "got '$($again.LastSeenVersion)'"
+
+$s12 = $load.Invoke($null, @([string]'C:\Clarion12', [string]$store))
+Check 'the OTHER Clarion has not seen it' ($s12.LastSeenVersion -eq '') `
+    "Clarion 12 inherited '$($s12.LastSeenVersion)' -- the notice would be skipped there"
+
+$fresh = $load.Invoke($null, @([string]'C:\Nowhere', [string]$store))
+Check 'an unknown root reads as empty, not null' ($fresh.LastSeenVersion -eq '') 'null or wrong'
+
+Remove-Item $sandbox -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host ''
 if ($fail -eq 0) { Write-Host 'ALL CHECKS PASSED' -ForegroundColor Green; exit 0 }

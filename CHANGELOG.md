@@ -45,6 +45,20 @@ All notable changes to Addin Finder are documented here.
   work. Someone installing Addin Finder for the first time is deliberately not shown it -- they
   have no previous behaviour to be told about.
 
+- **Consent and the change notice are recorded per Clarion installation.** They were global, so
+  accepting in Clarion 11 silently accepted in Clarion 12 -- which may still be running an older
+  build that has not been told what it would be accepting. Same shape as the installed-addin fix
+  in 0.7.0. The restart reminder stays global on purpose: that is a preference about the tool's
+  own chattiness, not a decision about trusting anyone.
+- **The new settings format lives in `settings.v2.json`.** Builds up to 0.7.1 read `settings.json`
+  by searching the raw text for the literal `"suppressRestartReminder": true`, so writing the new
+  document there would leave that preference silently off for any Clarion still on an older build.
+- **Addins that Addin Finder never published are no longer listed as installed.** Since 0.7.1 the
+  store adopts every addin folder found on disk, which is right for collision checks and for not
+  overwriting other people's work -- but Clarion Assistant, a hand-unzipped copy, or anything
+  another installer placed is not ours to list. Doing so claimed a relationship that never existed
+  and offered actions we have no business offering.
+
 ### Changed
 - A failed publisher fetch no longer empties the pad. Each publisher is fetched independently and
   in parallel; a failure falls back to that publisher's cached list, shown as such.

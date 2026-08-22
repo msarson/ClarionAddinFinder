@@ -63,26 +63,51 @@ namespace AddinFinder
             return result;
         }
 
-        public static AddinFinderSettings ParseSettings(string json)
+        /// <summary>
+        /// Reads settings in either shape into the instance, which already knows which Clarion it
+        /// is for. A pre-v2 document has no per-Clarion section, so its values are adopted for that
+        /// root -- see AddinFinderSettings.AdoptLegacy.
+        /// </summary>
+        public static void FillSettings(AddinFinderSettings settings, string json)
         {
-            var s = new AddinFinderSettings();
-            if (string.IsNullOrWhiteSpace(json)) return s;
+            if (string.IsNullOrWhiteSpace(json)) return;
 
             var raw = _js.Deserialize<Dictionary<string, object>>(json);
-            s.SuppressRestartReminder = Bool(raw, "suppressRestartReminder");
-            s.AcceptedTermsVersion    = Int(raw, "acceptedTermsVersion");
-            s.AcknowledgedPublishers  = StrList(raw, "acknowledgedPublishers");
-            s.LastSeenVersion         = S(raw, "lastSeenVersion");
-            return s;
+            settings.SuppressRestartReminder = Bool(raw, "suppressRestartReminder");
+
+            if (Int(raw, "version") >= 2)
+            {
+                var entries = new List<ClarionSettings>();
+                foreach (var c in Entries(raw, "perClarion"))
+                    entries.Add(new ClarionSettings
+                    {
+                        Root                   = S(c, "root"),
+                        AcceptedTermsVersion   = Int(c, "acceptedTermsVersion"),
+                        LastSeenVersion        = S(c, "lastSeenVersion"),
+                        AcknowledgedPublishers = StrList(c, "acknowledgedPublishers"),
+                    });
+                settings.SetPerClarion(entries);
+                return;
+            }
+
+            settings.AdoptLegacy(Int(raw, "acceptedTermsVersion"),
+                                 S(raw, "lastSeenVersion"),
+                                 StrList(raw, "acknowledgedPublishers"));
         }
 
-        public static string SerialiseSettings(AddinFinderSettings s)
+        public static string SerialiseSettings(AddinFinderSettings settings,
+                                               List<ClarionSettings> perClarion)
             => _js.Serialize(new
             {
-                suppressRestartReminder = s.SuppressRestartReminder,
-                acceptedTermsVersion    = s.AcceptedTermsVersion,
-                acknowledgedPublishers  = s.AcknowledgedPublishers,
-                lastSeenVersion         = s.LastSeenVersion,
+                version                 = 2,
+                suppressRestartReminder = settings.SuppressRestartReminder,
+                perClarion = perClarion.Select(c => new
+                {
+                    root                   = c.Root,
+                    acceptedTermsVersion   = c.AcceptedTermsVersion,
+                    lastSeenVersion        = c.LastSeenVersion,
+                    acknowledgedPublishers = c.AcknowledgedPublishers,
+                }).ToList()
             });
 
         public static List<PublisherHealthEntry> ParsePublisherHealth(string json)

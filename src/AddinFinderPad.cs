@@ -17,7 +17,10 @@ namespace AddinFinder
 
         private readonly RegistryClient      _registryClient  = new RegistryClient();
         private readonly InstalledAddinStore _installedStore  = new InstalledAddinStore();
-        private readonly AddinFinderSettings _settings        = AddinFinderSettings.Load();
+        // Consent and the change notice are per Clarion, so the settings must be loaded for
+        // the root this pad is running in -- not once for the machine.
+        private readonly AddinFinderSettings _settings        =
+            AddinFinderSettings.Load(ClarionRoot.Resolve() ?? string.Empty);
         private AddinInstaller?              _installer;
 
         /// <summary>The Clarion this pad acts on. Empty if it could not be resolved.</summary>

@@ -112,10 +112,20 @@ namespace AddinFinder
         }
 
         /// <summary>
-        /// Addins the user has installed that no longer appear anywhere in the current listing.
+        /// Addins the user installed THROUGH US that no longer appear anywhere in the current
+        /// listing.
         ///
-        /// Only meaningful for a publisher whose list was read successfully -- absence after a failed
-        /// fetch means nothing at all. The caller supplies what is installed; the disk and
+        /// Two things are deliberately excluded.
+        ///
+        /// Anything we never knew about: since 0.7.1 the store adopts every addin folder found on
+        /// disk, which is right for collision checks and for not overwriting other people's work,
+        /// but those are not our addins. Clarion Assistant, a hand-unzipped copy, anything another
+        /// installer placed -- listing them as "no longer published" would claim a relationship
+        /// that never existed and offer the user actions we have no business offering. Evidence
+        /// that we knew it is a cached registry entry, or a publisher recorded at install time.
+        ///
+        /// And anything whose publisher merely could not be reached: absence after a failed fetch
+        /// means nothing at all. The caller supplies what is installed; the disk and
         /// installed.v2.json remain the only authority on that.
         /// </summary>
         public List<RegistryAddin> DescribeWithdrawn(RegistryResult result,
@@ -136,13 +146,20 @@ namespace AddinFinder
                     outcome != FetchOutcome.Ok)
                     continue;
 
-                RegistryAddin known = _cache.Find(inst.Id) ?? new RegistryAddin
+                RegistryAddin? known = _cache.Find(inst.Id);
+                if (known == null)
                 {
-                    Id        = inst.Id,
-                    Name      = inst.Id,
-                    Publisher = inst.Publisher,
-                    Version   = inst.Version,
-                };
+                    // Never listed by anyone we follow. If we installed it ourselves the publisher
+                    // is recorded, and it is ours to account for even without a cached entry.
+                    if (inst.Publisher.Length == 0) continue;
+                    known = new RegistryAddin
+                    {
+                        Id        = inst.Id,
+                        Name      = inst.Id,
+                        Publisher = inst.Publisher,
+                        Version   = inst.Version,
+                    };
+                }
                 known.NoLongerPublished = true;
                 gone.Add(known);
             }
