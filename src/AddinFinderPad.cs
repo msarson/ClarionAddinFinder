@@ -19,6 +19,9 @@ namespace AddinFinder
         private readonly AddinFinderSettings _settings        = AddinFinderSettings.Load();
         private AddinInstaller?              _installer;
 
+        /// <summary>The Clarion this pad acts on. Empty if it could not be resolved.</summary>
+        private string ClarionRootPath => ClarionRoot.Resolve() ?? string.Empty;
+
         private List<RegistryAddin>    _registryAddins  = new List<RegistryAddin>();
         private List<InstalledAddin>   _installedAddins = new List<InstalledAddin>();
         private RegistryAddin?         _selectedAddin;
@@ -29,7 +32,7 @@ namespace AddinFinder
         public AddinFinderPad()
         {
             InitializeComponent();
-            _installedAddins = _installedStore.Load();
+            _installedAddins = _installedStore.Load(ClarionRootPath);
             _installer       = TryCreateInstaller();
             SetSplitterDistance();
             HookInitialLoad();
@@ -127,7 +130,7 @@ namespace AddinFinder
                     else
                     {
                         _registryAddins  = registry!.Addins;
-                        _installedAddins = _installedStore.Load();
+                        _installedAddins = _installedStore.Load(ClarionRootPath);
                         PopulateList();
                         _statusLabel.Text        = $"{registry!.Addins.Count} addin(s) available · updated {registry!.Updated}";
                         _refreshButton.Enabled   = true;
@@ -291,7 +294,7 @@ namespace AddinFinder
                 }
                 _contentPanel.BeginInvoke(new Action(() =>
                 {
-                    _installedAddins = _installedStore.Load();
+                    _installedAddins = _installedStore.Load(ClarionRootPath);
                     PopulateList();
                     if (failed.Count > 0)
                     {
@@ -339,7 +342,7 @@ namespace AddinFinder
                 }
                 catch (Exception ex) { failed.Add($"{addin.Name}: {ex.Message}"); }
             }
-            _installedAddins = _installedStore.Load();
+            _installedAddins = _installedStore.Load(ClarionRootPath);
             PopulateList();
             string[] addinNameArr = addins.Select(a => a.Name).ToArray();
             if (failed.Count > 0)

@@ -18,16 +18,28 @@ namespace AddinFinder
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11;
         }
 
+        private readonly string _clarionRoot;
         private readonly string _addinsRoot;
         private readonly InstalledAddinStore _store;
 
+        /// <summary>The Clarion this installer acts on. Every store write is keyed by it.</summary>
+        public string ClarionRootPath => _clarionRoot;
+
         public AddinInstaller(string clarionRoot, InstalledAddinStore store)
         {
-            _addinsRoot = Path.Combine(clarionRoot, "accessory", "addins");
-            _store      = store;
+            _clarionRoot = ClarionRoot.Normalise(clarionRoot);
+            _addinsRoot  = ClarionRoot.AddinsFolder(_clarionRoot);
+            _store       = store;
         }
 
         private const string UninstallMarker = "_uninstall";
+
+        /// <summary>
+        /// Suffix for the download scratch folder. It sits under the staging root -- outside the
+        /// folder Clarion scans -- so a failed or interrupted download can never present itself to
+        /// the IDE as a broken addin.
+        /// </summary>
+        private const string ScratchSuffix = "_dl";
 
         /// <summary>
         /// Apply any pending updates/uninstalls staged during the previous session.
@@ -41,6 +53,15 @@ namespace AddinFinder
             foreach (string stagingDir in Directory.GetDirectories(StagingRoot))
             {
                 string addinId  = Path.GetFileName(stagingDir);
+
+                // Download scratch folders live here too. They are not staged work, and treating
+                // one as such would create an addin folder literally named "<id>_dl".
+                if (addinId.EndsWith(ScratchSuffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    SafeDeleteDirectory(stagingDir);
+                    continue;
+                }
+
                 string addinDir = Path.Combine(_addinsRoot, addinId);
 
                 try
@@ -51,6 +72,7 @@ namespace AddinFinder
                         if (Directory.Exists(addinDir))
                             Directory.Delete(addinDir, recursive: true);
                         Directory.Delete(stagingDir, recursive: true);
+                        _store.MarkUninstalled(_clarionRoot, addinId);
                         applied++;
                         continue;
                     }
@@ -75,6 +97,11 @@ namespace AddinFinder
                         File.Copy(file, dest, overwrite: false);
                     }
                     Directory.Delete(stagingDir, recursive: true);
+
+                    // The payload is now under accessory\addins, so the entry is no longer staged
+                    // and rejoins the disk reconciliation. Version comes from the manifest we just
+                    // wrote, which Load() reads -- passing "" here would only be overwritten.
+                    _store.ClearStaged(_clarionRoot, addinId);
                     applied++;
                 }
                 catch { /* leave staging in place if still locked */ }
@@ -87,23 +114,72 @@ namespace AddinFinder
         {
             staged = false;
             string folder = Path.Combine(_addinsRoot, addin.Id);
-            Directory.CreateDirectory(folder);
 
+            // Clarion scans every subfolder of accessory\addins at startup and reports one that has
+            // no usable manifest as a broken addin. So the folder must not exist until its contents
+            // do: download to a scratch folder OUTSIDE the scanned root, then move it into place.
+            // Creating it first and downloading into it leaves an empty folder behind on any
+            // failure -- and WebException does not derive from IOException, so the catch below
+            // never covered a failed download.
+            string scratch = Path.Combine(StagingRoot, addin.Id + ScratchSuffix);
+            bool preexisting = Directory.Exists(folder);
             try
             {
-                WriteFiles(addin, folder);
+                SafeDeleteDirectory(scratch);
+                Directory.CreateDirectory(scratch);
+                WriteFiles(addin, scratch);
+
+                try
+                {
+                    MoveIntoPlace(scratch, folder);
+                }
+                catch (IOException)
+                {
+                    // Files locked by the running IDE — hand the already-downloaded payload to
+                    // ApplyPendingUpdates, which runs before the addins load next startup.
+                    staged = true;
+                    string pending = Path.Combine(StagingRoot, addin.Id);
+                    SafeDeleteDirectory(pending);
+                    Directory.Move(scratch, pending);
+                }
             }
-            catch (IOException)
+            catch
             {
-                // Files locked — stage to AppData\ClarionAddinFinder\pending\{id}\ for next startup
-                staged = true;
-                string pending = Path.Combine(StagingRoot, addin.Id);
-                Directory.CreateDirectory(pending);
-                WriteFiles(addin, pending);
+                // Never leave a half-written folder under the scanned root. A folder that was
+                // already there before we started is the user's, not ours, so it stays.
+                if (!preexisting) SafeDeleteDirectory(folder);
+                throw;
+            }
+            finally
+            {
+                SafeDeleteDirectory(scratch);
             }
 
-            _store.MarkInstalled(addin.Id, addin.Version);
+            // Record the version only once the files are where they belong. On the staged path the
+            // payload is still in pending, so the entry is marked staged and exempted from the disk
+            // reconciliation until ApplyPendingUpdates moves it.
+            _store.MarkInstalled(_clarionRoot, addin.Id, addin.Version, staged);
             return true;
+        }
+
+        /// <summary>Copy everything from src into dest, creating dest if needed.</summary>
+        private static void MoveIntoPlace(string src, string dest)
+        {
+            Directory.CreateDirectory(dest);
+            foreach (string file in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
+            {
+                string relative = file.Substring(src.Length).TrimStart(
+                    Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string target = Path.Combine(dest, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(file, target, overwrite: true);   // throws IOException if locked
+            }
+        }
+
+        private static void SafeDeleteDirectory(string path)
+        {
+            try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); }
+            catch { /* best effort */ }
         }
 
         /// <summary>Returns true if uninstall was staged (files locked); false if removed immediately.</summary>
@@ -124,7 +200,7 @@ namespace AddinFinder
                 Directory.CreateDirectory(pending);
                 File.WriteAllText(Path.Combine(pending, UninstallMarker), "");
             }
-            _store.MarkUninstalled(addin.Id);
+            _store.MarkUninstalled(_clarionRoot, addin.Id);
             return true;
         }
 

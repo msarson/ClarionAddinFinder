@@ -36,5 +36,29 @@ namespace AddinFinder
         public string Id            { get; set; } = "";
         public string Version       { get; set; } = "";
         public string InstalledAt   { get; set; } = "";
+
+        /// <summary>
+        /// The Clarion root this addin is installed into. Empty only for legacy (v1) entries, which
+        /// predate per-root tracking and wait in InstalledStore.LegacyUnclaimed until a root claims
+        /// them.
+        /// </summary>
+        public string Root          { get; set; } = "";
+
+        /// <summary>
+        /// True while the files are still in the pending folder because the originals were locked.
+        /// A staged entry is exempt from disk reconciliation -- its files have not reached
+        /// accessory/addins yet, so checking for them there would wrongly delete the entry.
+        /// </summary>
+        public bool   Staged        { get; set; }
+    }
+
+    /// <summary>The whole installed.json document. Version 2 keys entries by Clarion root.</summary>
+    public class InstalledStore
+    {
+        public int                  Version         { get; set; } = 2;
+        public List<InstalledAddin> Installed       { get; set; } = new List<InstalledAddin>();
+
+        /// <summary>v1 entries not yet attributed to a root. See SimpleJsonParser.ParseStore.</summary>
+        public List<InstalledAddin> LegacyUnclaimed { get; set; } = new List<InstalledAddin>();
     }
 }

@@ -21,9 +21,8 @@ namespace AddinFinder
             // Apply any staged addin updates as early as possible
             try
             {
-                string asmDir    = Path.GetDirectoryName(typeof(RegisterIconsCommand).Assembly.Location)!;
-                string clarionRoot = Path.GetFullPath(Path.Combine(asmDir, "..", "..", ".."));
-                if (Directory.Exists(Path.Combine(clarionRoot, "bin")))
+                string? clarionRoot = ClarionRoot.Resolve();
+                if (clarionRoot != null)
                     new AddinInstaller(clarionRoot, new InstalledAddinStore()).ApplyPendingUpdates();
             }
             catch { /* non-fatal */ }
