@@ -72,7 +72,8 @@ namespace AddinFinder
             return doc.Installed.Where(a => ClarionRoot.Same(a.Root, clarionRoot)).ToList();
         }
 
-        public void MarkInstalled(string clarionRoot, string id, string version, bool staged)
+        public void MarkInstalled(string clarionRoot, string id, string version, bool staged,
+                                  string publisher = "")
         {
             InstalledStore doc = ReadDocument();
             doc.Installed.RemoveAll(a => a.Id == id && ClarionRoot.Same(a.Root, clarionRoot));
@@ -83,6 +84,7 @@ namespace AddinFinder
                 Version     = version,
                 InstalledAt = DateTime.Today.ToString("yyyy-MM-dd"),
                 Staged      = staged,
+                Publisher   = publisher,
             });
             Write(doc);
         }
@@ -135,11 +137,19 @@ namespace AddinFinder
                     continue;
                 }
 
-                // An addin whose manifest carries no version attribute is NOT unknown -- plenty of
-                // manifests omit it (AddinFinder's own did until 0.7.0). Keep what we recorded
-                // rather than treating the omission as a reason to distrust the entry.
+                // The manifest is the publisher's self-report, and it goes stale: FlattenCode has
+                // shipped 1.0.1 through 1.0.3 with <Identity version="1.0"/> throughout. Taking it
+                // as truth overwrote the version we actually installed with a lower one, and the
+                // comparison against the registry then reported an update forever -- installing it
+                // only to have the manifest reassert the old number on the next load.
+                //
+                // So the manifest may only ever move a version FORWARD. Higher than recorded means
+                // something updated the addin behind our back, which is worth knowing. Lower or
+                // equal means the publisher has not maintained the attribute, and what we installed
+                // remains the better answer.
                 string onDisk = ReadIdentityVersion(manifest);
-                if (onDisk.Length > 0 && onDisk != entry.Version)
+                if (onDisk.Length > 0 &&
+                    (entry.Version.Length == 0 || CompareDotted(onDisk, entry.Version) > 0))
                 {
                     entry.Version = onDisk;
                     changed = true;
@@ -202,6 +212,19 @@ namespace AddinFinder
                 changed = true;
             }
             return changed;
+        }
+
+        /// <summary>-1 if a &lt; b, 0 if equal, 1 if a &gt; b. Component-wise, so 1.10 beats 1.9.</summary>
+        private static int CompareDotted(string a, string b)
+        {
+            string[] pa = (a ?? "").Split('.'), pb = (b ?? "").Split('.');
+            for (int i = 0; i < Math.Max(pa.Length, pb.Length); i++)
+            {
+                int x = i < pa.Length && int.TryParse(pa[i], out var xv) ? xv : 0;
+                int y = i < pb.Length && int.TryParse(pb[i], out var yv) ? yv : 0;
+                if (x != y) return x < y ? -1 : 1;
+            }
+            return 0;
         }
 
         /// <summary>The addin's manifest under this root, or null if the folder has none.</summary>

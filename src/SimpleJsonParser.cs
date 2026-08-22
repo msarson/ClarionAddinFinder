@@ -22,14 +22,179 @@ namespace AddinFinder
                 Updated = raw.TryGetValue("updated", out var upd) ? upd?.ToString() ?? "" : "",
             };
 
-            if (raw.TryGetValue("addins", out var addinsObj) &&
-                addinsObj is System.Collections.ArrayList addinsList)
-            {
-                foreach (Dictionary<string, object> a in addinsList)
-                    registry.Addins.Add(MapAddin(a));
-            }
+            // The legacy flat list. Kept while publishers migrate to their own files, and read by
+            // builds that predate federation -- which is why the root file keeps this key rather
+            // than the format changing under them.
+            foreach (var a in Entries(raw, "addins"))
+                registry.Addins.Add(MapAddin(a));
+
+            foreach (var p in Entries(raw, "publishers"))
+                registry.Publishers.Add(new Publisher
+                {
+                    Id         = S(p, "id"),
+                    Name       = S(p, "name"),
+                    Repo       = S(p, "repo"),
+                    Branch     = S(p, "branch"),
+                    Status     = Or(S(p, "status"), PublisherStatus.Active),
+                    StatusNote = S(p, "statusNote"),
+                });
+
+            registry.Revoked = StrList(raw, "revoked");
             return registry;
         }
+
+        /// <summary>
+        /// Reads one publisher's own addins.json. Entry format is identical to the legacy list, so a
+        /// publisher migrating copies their entries across unchanged. Every addin is stamped with the
+        /// publisher it came from -- provenance has to survive from here through to install.
+        /// </summary>
+        public static List<RegistryAddin> ParsePublisherAddins(string json, string publisherId)
+        {
+            var result = new List<RegistryAddin>();
+            if (string.IsNullOrWhiteSpace(json)) return result;
+
+            var raw = _js.Deserialize<Dictionary<string, object>>(json);
+            foreach (var a in Entries(raw, "addins"))
+            {
+                var addin = MapAddin(a);
+                addin.Publisher = publisherId;
+                result.Add(addin);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Reads settings in either shape into the instance, which already knows which Clarion it
+        /// is for. A pre-v2 document has no per-Clarion section, so its values are adopted for that
+        /// root -- see AddinFinderSettings.AdoptLegacy.
+        /// </summary>
+        public static void FillSettings(AddinFinderSettings settings, string json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return;
+
+            var raw = _js.Deserialize<Dictionary<string, object>>(json);
+            settings.SuppressRestartReminder = Bool(raw, "suppressRestartReminder");
+
+            if (Int(raw, "version") >= 2)
+            {
+                var entries = new List<ClarionSettings>();
+                foreach (var c in Entries(raw, "perClarion"))
+                    entries.Add(new ClarionSettings
+                    {
+                        Root                   = S(c, "root"),
+                        AcceptedTermsVersion   = Int(c, "acceptedTermsVersion"),
+                        LastSeenVersion        = S(c, "lastSeenVersion"),
+                        AcknowledgedPublishers = StrList(c, "acknowledgedPublishers"),
+                    });
+                settings.SetPerClarion(entries);
+                return;
+            }
+
+            settings.AdoptLegacy(Int(raw, "acceptedTermsVersion"),
+                                 S(raw, "lastSeenVersion"),
+                                 StrList(raw, "acknowledgedPublishers"));
+        }
+
+        public static string SerialiseSettings(AddinFinderSettings settings,
+                                               List<ClarionSettings> perClarion)
+            => _js.Serialize(new
+            {
+                version                 = 2,
+                suppressRestartReminder = settings.SuppressRestartReminder,
+                perClarion = perClarion.Select(c => new
+                {
+                    root                   = c.Root,
+                    acceptedTermsVersion   = c.AcceptedTermsVersion,
+                    lastSeenVersion        = c.LastSeenVersion,
+                    acknowledgedPublishers = c.AcknowledgedPublishers,
+                }).ToList()
+            });
+
+        public static List<PublisherHealthEntry> ParsePublisherHealth(string json)
+        {
+            var result = new List<PublisherHealthEntry>();
+            if (string.IsNullOrWhiteSpace(json)) return result;
+
+            var raw = _js.Deserialize<Dictionary<string, object>>(json);
+            foreach (var e in Entries(raw, "publishers"))
+                result.Add(new PublisherHealthEntry
+                {
+                    Id                  = S(e, "id"),
+                    LastOutcome         = S(e, "lastOutcome"),
+                    LastSuccess         = S(e, "lastSuccess"),
+                    NotFoundSince       = S(e, "notFoundSince"),
+                    ConsecutiveNotFound = Int(e, "consecutiveNotFound"),
+                });
+            return result;
+        }
+
+        public static string SerialisePublisherHealth(List<PublisherHealthEntry> entries)
+            => _js.Serialize(new
+            {
+                publishers = entries.Select(e => new
+                {
+                    id                  = e.Id,
+                    lastOutcome         = e.LastOutcome,
+                    lastSuccess         = e.LastSuccess,
+                    notFoundSince       = e.NotFoundSince,
+                    consecutiveNotFound = e.ConsecutiveNotFound,
+                }).ToList()
+            });
+
+        public static Dictionary<string, List<RegistryAddin>> ParseRegistryCache(string json)
+        {
+            var result = new Dictionary<string, List<RegistryAddin>>();
+            if (string.IsNullOrWhiteSpace(json)) return result;
+
+            var raw = _js.Deserialize<Dictionary<string, object>>(json);
+            foreach (var p in Entries(raw, "publishers"))
+            {
+                string id = S(p, "id");
+                if (id.Length == 0) continue;
+                var list = new List<RegistryAddin>();
+                foreach (var a in Entries(p, "addins"))
+                {
+                    var addin = MapAddin(a);
+                    addin.Publisher = id;
+                    list.Add(addin);
+                }
+                result[id] = list;
+            }
+            return result;
+        }
+
+        public static string SerialiseRegistryCache(Dictionary<string, List<RegistryAddin>> byPublisher)
+            => _js.Serialize(new
+            {
+                publishers = byPublisher.Select(pair => new
+                {
+                    id     = pair.Key,
+                    addins = pair.Value.Select(SerialisableAddin).ToList()
+                }).ToList()
+            });
+
+        private static object SerialisableAddin(RegistryAddin a) => new
+        {
+            id              = a.Id,
+            name            = a.Name,
+            description     = a.Description,
+            author          = a.Author,
+            authorUrl       = a.AuthorUrl,
+            license         = a.License,
+            category        = a.Category,
+            version         = a.Version,
+            targetFramework = a.TargetFramework,
+            downloadUrls    = a.DownloadUrls,
+            downloadZipUrl  = a.DownloadZipUrl,
+            addinFileUrl    = a.AddinFileUrl,
+            homepageUrl     = a.HomepageUrl,
+            changelogUrl    = a.ChangelogUrl,
+            fork            = a.Fork,
+            upstreamUrl     = a.UpstreamUrl,
+            status          = a.Status,
+            statusNote      = a.StatusNote,
+            replacedBy      = a.ReplacedBy,
+        };
 
         /// <summary>
         /// Reads installed.json in either format.
@@ -57,6 +222,7 @@ namespace AddinFinder
                         Version     = S(a, "version"),
                         InstalledAt = S(a, "installedAt"),
                         Staged      = Bool(a, "staged"),
+                        Publisher   = S(a, "publisher"),
                     });
 
                 foreach (var a in Entries(raw, "legacyUnclaimed"))
@@ -91,6 +257,7 @@ namespace AddinFinder
                     version     = a.Version,
                     installedAt = a.InstalledAt,
                     staged      = a.Staged,
+                    publisher   = a.Publisher,
                 }).ToList(),
                 legacyUnclaimed = store.LegacyUnclaimed.Select(a => new
                 {
@@ -125,7 +292,19 @@ namespace AddinFinder
             ChangelogUrl    = S(a, "changelogUrl"),
             Fork            = Bool(a, "fork"),
             UpstreamUrl     = S(a, "upstreamUrl"),
+            Status          = Or(S(a, "status"), AddinLifecycle.Active),
+            StatusNote      = S(a, "statusNote"),
+            ReplacedBy      = S(a, "replacedBy"),
         };
+
+        private static string Or(string value, string fallback)
+            => string.IsNullOrWhiteSpace(value) ? fallback : value.Trim().ToLowerInvariant();
+
+        private static int Int(Dictionary<string, object> d, string key)
+        {
+            if (!d.TryGetValue(key, out var v) || v == null) return 0;
+            try { return Convert.ToInt32(v); } catch { return 0; }
+        }
 
         private static string S(Dictionary<string, object> d, string key)
             => d.TryGetValue(key, out var v) ? v?.ToString() ?? "" : "";
