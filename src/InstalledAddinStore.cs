@@ -22,11 +22,26 @@ namespace AddinFinder
     /// </summary>
     public class InstalledAddinStore
     {
-        private static readonly string StoreDir = Path.Combine(
+        private static string DefaultStoreDir => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClarionAddinFinder");
 
-        private static readonly string StorePath  = Path.Combine(StoreDir, "installed.json");
-        private static readonly string BackupPath = Path.Combine(StoreDir, "installed.json.v1.bak");
+        private readonly string _storeDir;
+        private readonly string _storePath;
+        private readonly string _backupPath;
+
+        public InstalledAddinStore() : this(DefaultStoreDir) { }
+
+        /// <summary>
+        /// Overrides where the store lives. Exists so tests can point at a scratch directory:
+        /// SpecialFolder.ApplicationData goes through the Win32 shell API and ignores %APPDATA%,
+        /// so there is no way to redirect it from outside the process.
+        /// </summary>
+        public InstalledAddinStore(string storeDir)
+        {
+            _storeDir   = storeDir;
+            _storePath  = Path.Combine(storeDir, "installed.json");
+            _backupPath = Path.Combine(storeDir, "installed.json.v1.bak");
+        }
 
         /// <summary>
         /// Entries for this Clarion root, reconciled against disk.
@@ -194,12 +209,12 @@ namespace AddinFinder
 
         // ---- persistence ----------------------------------------------------------------------
 
-        private static InstalledStore ReadDocument()
+        private InstalledStore ReadDocument()
         {
             try
             {
-                if (!File.Exists(StorePath)) return new InstalledStore();
-                string json = File.ReadAllText(StorePath, Encoding.UTF8);
+                if (!File.Exists(_storePath)) return new InstalledStore();
+                string json = File.ReadAllText(_storePath, Encoding.UTF8);
                 InstalledStore doc = SimpleJsonParser.ParseStore(json);
 
                 // v1 had no "version" and no per-entry root. Park those entries for claiming and
@@ -207,7 +222,7 @@ namespace AddinFinder
                 // an empty install list and invite reinstalling over folders already in place.
                 if (doc.Version < 2 && doc.LegacyUnclaimed.Count > 0)
                 {
-                    try { File.Copy(StorePath, BackupPath, overwrite: true); } catch { }
+                    try { File.Copy(_storePath, _backupPath, overwrite: true); } catch { }
                     doc.Version = 2;
                     Write(doc);
                 }
@@ -216,13 +231,13 @@ namespace AddinFinder
             catch { return new InstalledStore(); }
         }
 
-        private static void Write(InstalledStore doc)
+        private void Write(InstalledStore doc)
         {
             try
             {
                 doc.Version = 2;
-                Directory.CreateDirectory(StoreDir);
-                File.WriteAllText(StorePath, SimpleJsonParser.SerialiseStore(doc), Encoding.UTF8);
+                Directory.CreateDirectory(_storeDir);
+                File.WriteAllText(_storePath, SimpleJsonParser.SerialiseStore(doc), Encoding.UTF8);
             }
             catch { /* a cache we cannot write is not worth failing an install over */ }
         }
