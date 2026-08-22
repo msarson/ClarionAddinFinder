@@ -52,6 +52,15 @@ namespace AddinFinder
             AcknowledgedPublishers.Add(publisherId ?? "");
         }
 
+        /// <summary>
+        /// Addin Finder version this user last ran, or "" if never recorded.
+        ///
+        /// Used to explain a change once, to the people it is a change FOR. Someone installing for
+        /// the first time has no previous behaviour to be told about, and telling them anyway is
+        /// noise dressed up as courtesy.
+        /// </summary>
+        public string LastSeenVersion { get; set; } = "";
+
         public static AddinFinderSettings Load()
         {
             try

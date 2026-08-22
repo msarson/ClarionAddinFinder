@@ -72,6 +72,7 @@ namespace AddinFinder
             s.SuppressRestartReminder = Bool(raw, "suppressRestartReminder");
             s.AcceptedTermsVersion    = Int(raw, "acceptedTermsVersion");
             s.AcknowledgedPublishers  = StrList(raw, "acknowledgedPublishers");
+            s.LastSeenVersion         = S(raw, "lastSeenVersion");
             return s;
         }
 
@@ -81,6 +82,7 @@ namespace AddinFinder
                 suppressRestartReminder = s.SuppressRestartReminder,
                 acceptedTermsVersion    = s.AcceptedTermsVersion,
                 acknowledgedPublishers  = s.AcknowledgedPublishers,
+                lastSeenVersion         = s.LastSeenVersion,
             });
 
         public static List<PublisherHealthEntry> ParsePublisherHealth(string json)

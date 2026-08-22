@@ -62,6 +62,12 @@ namespace AddinFinder
             {
                 _contentPanel.HandleCreated -= onHandleCreated;
                 SetPadTitle();
+
+                // Explained when the pad is first opened rather than at IDE startup: a modal during
+                // Clarion's own start-up sequence is intrusive, and this is only relevant once the
+                // user has come looking for addins anyway.
+                WhatsChangedDialog.ShowIfUpgraded(_contentPanel, _settings, HasEarlierState());
+
                 OnRefreshClick(null, EventArgs.Empty);
             };
 
@@ -163,6 +169,28 @@ namespace AddinFinder
             // implying it came from somewhere we can vouch for.
             if (known == null || known.Publisher.Length == 0) return " (publisher unknown)";
             return $" (from {known.Publisher})";
+        }
+
+        /// <summary>
+        /// Whether this user was using Addin Finder before the version that records it.
+        ///
+        /// Anything already installed through us, or a settings file we wrote earlier, means they
+        /// were here before. Without this, a first-time installer would be shown a notice about a
+        /// change they never experienced.
+        /// </summary>
+        private bool HasEarlierState()
+        {
+            if (_installedAddins.Count > 0) return true;
+            try
+            {
+                string dir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "ClarionAddinFinder");
+                return File.Exists(Path.Combine(dir, "installed.json"))
+                    || File.Exists(Path.Combine(dir, "installed.v2.json"))
+                    || File.Exists(Path.Combine(dir, "settings.json"));
+            }
+            catch { return false; }
         }
 
         private void PopulateList()

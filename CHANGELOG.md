@@ -35,6 +35,13 @@ All notable changes to Addin Finder are documented here.
   it, so the part that recurs is the part that differs every time: a name, an account, a link to
   read before trusting it.
 
+- **A one-time explanation on upgrading.** The first time the pad is opened on this version,
+  anyone arriving from an earlier one is told what changed and why: publishing used to require
+  every addin, and every new version of one, to be added to a single central list, which put one
+  person in the path of everybody else's releases and fell hardest on publishers already doing the
+  work. Someone installing Addin Finder for the first time is deliberately not shown it -- they
+  have no previous behaviour to be told about.
+
 ### Changed
 - A failed publisher fetch no longer empties the pad. Each publisher is fetched independently and
   in parallel; a failure falls back to that publisher's cached list, shown as such.
