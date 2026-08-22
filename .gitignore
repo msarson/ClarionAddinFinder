@@ -18,3 +18,6 @@ Desktop.ini
 
 # Claude Code local state
 .claude/
+
+# Local test packages, not release artefacts
+dist/
