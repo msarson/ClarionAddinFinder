@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -24,6 +25,7 @@ namespace AddinFinder
 
         private List<RegistryAddin>    _registryAddins  = new List<RegistryAddin>();
         private List<InstalledAddin>   _installedAddins = new List<InstalledAddin>();
+        private RegistryResult         _lastResult      = new RegistryResult();
         private RegistryAddin?         _selectedAddin;
         private string                 _lastError       = string.Empty;
 
@@ -111,10 +113,10 @@ namespace AddinFinder
             {
                 // Run both fetches on the same background thread
                 Exception?      registryEx = null;
-                AddinRegistry?  registry   = null;
+                RegistryResult? registry   = null;
                 SelfUpdateInfo? updateInfo = null;
 
-                try   { registry   = _registryClient.Fetch(); }
+                try   { registry   = _registryClient.FetchAll(DateTime.Today); }
                 catch (Exception ex) { registryEx = ex; }
 
                 try   { updateInfo = SelfUpdateChecker.Check(); }
@@ -129,10 +131,17 @@ namespace AddinFinder
                     }
                     else
                     {
-                        _registryAddins  = registry!.Addins;
+                        _lastResult      = registry!;
                         _installedAddins = _installedStore.Load(ClarionRootPath);
+
+                        // An addin the user has, that no publisher lists any more, still has to be
+                        // visible to them -- described from cache rather than vanishing silently.
+                        _registryAddins = new List<RegistryAddin>(registry!.Addins);
+                        _registryAddins.AddRange(
+                            _registryClient.DescribeWithdrawn(registry!, _installedAddins));
+
                         PopulateList();
-                        _statusLabel.Text        = $"{registry!.Addins.Count} addin(s) available · updated {registry!.Updated}";
+                        _statusLabel.Text        = SummariseRefresh(registry!);
                         _refreshButton.Enabled   = true;
                         _copyErrorButton.Visible = false;
                     }
@@ -143,14 +152,31 @@ namespace AddinFinder
 
         // ── List population ───────────────────────────────────────────────
 
+        /// <summary>Names the publisher of a conflicting copy, when we know it.</summary>
+        private string DescribeClashOwner(string addinId, string clashFolder)
+        {
+            string folderId = Path.GetFileName(clashFolder);
+            var known = _installedAddins.FirstOrDefault(
+                i => string.Equals(i.Id, folderId, StringComparison.OrdinalIgnoreCase));
+
+            // An adopted or hand-placed copy has no recorded publisher. Say so rather than
+            // implying it came from somewhere we can vouch for.
+            if (known == null || known.Publisher.Length == 0) return " (publisher unknown)";
+            return $" (from {known.Publisher})";
+        }
+
         private void PopulateList()
         {
             _addinListView.BeginUpdate();
             _addinListView.Items.Clear();
+            _addinListView.Groups.Clear();
+            _addinListView.ShowGroups = true;
 
             var addins = IsInstalledTabActive
                 ? _registryAddins.Where(a => GetStatus(a) == AddinStatus.Installed || GetStatus(a) == AddinStatus.UpdateAvailable).ToList()
-                : _registryAddins;
+                : _registryAddins.Where(IsListedOnAllTab).ToList();
+
+            var groups = new Dictionary<string, ListViewGroup>();
 
             foreach (var addin in addins)
             {
@@ -159,13 +185,109 @@ namespace AddinFinder
                 item.SubItems.Add(addin.Author);
                 item.SubItems.Add(addin.Category);
                 item.SubItems.Add(addin.Version);
-                item.SubItems.Add(StatusText(status));
+                item.SubItems.Add(LifecycleText(addin, status));
                 item.Tag = addin;
-                item.ForeColor = StatusColour(status);
+                item.ForeColor = LifecycleColour(addin, status);
+                item.Group = GroupFor(groups, addin);
                 _addinListView.Items.Add(item);
             }
 
             _addinListView.EndUpdate();
+        }
+
+        /// <summary>
+        /// Whether an addin belongs on the All tab -- i.e. whether we would offer it to someone who
+        /// does not have it. Deprecated addins, withdrawn addins and those from an abandoned or
+        /// revoked publisher are not offered, but stay visible on the Installed tab to anyone who
+        /// already has one.
+        /// </summary>
+        private bool IsListedOnAllTab(RegistryAddin addin)
+        {
+            if (!addin.IsOffered) return false;
+            var publisher = PublisherOf(addin);
+            if (publisher != null && publisher.Status != PublisherStatus.Active) return false;
+            return true;
+        }
+
+        private Publisher? PublisherOf(RegistryAddin addin)
+            => addin.Publisher.Length == 0
+                ? null
+                : _lastResult.Publishers.FirstOrDefault(p => p.Id == addin.Publisher);
+
+        /// <summary>
+        /// One group per publisher, headed by their state. Provenance is the point: approving
+        /// publishers means nothing to a user who cannot see whose code they are about to run.
+        /// </summary>
+        private ListViewGroup GroupFor(Dictionary<string, ListViewGroup> groups, RegistryAddin addin)
+        {
+            string key = addin.Publisher.Length > 0 ? addin.Publisher : "";
+            ListViewGroup existing;
+            if (groups.TryGetValue(key, out existing)) return existing;
+
+            string header;
+            if (key.Length == 0)
+            {
+                // Entries from the legacy flat list, and anything adopted from disk or put there by
+                // another installer. Never label these with a publisher we do not actually know.
+                header = "Unknown publisher";
+            }
+            else
+            {
+                var p = PublisherOf(addin);
+                header = p != null && p.Name.Length > 0 ? p.Name + " (" + key + ")" : key;
+
+                string note = PublisherStateNote(key, p);
+                if (note.Length > 0) header += " — " + note;
+            }
+
+            var group = new ListViewGroup(header);
+            groups[key] = group;
+            _addinListView.Groups.Add(group);
+            return group;
+        }
+
+        /// <summary>
+        /// How a publisher's situation reads in the group header. Deliberately distinguishes "we
+        /// could not reach them" from "their list is gone" -- the first says nothing about the
+        /// publisher, and treating it as withdrawal would turn an outage into a false alarm.
+        /// </summary>
+        private string PublisherStateNote(string publisherId, Publisher? p)
+        {
+            if (p != null && p.Status == PublisherStatus.Revoked)   return "REVOKED — see notes before using";
+            if (p != null && p.Status == PublisherStatus.Abandoned) return "no longer publishing";
+            if (_lastResult.PresumedWithdrawn.Contains(publisherId)) return "list appears to have been removed";
+
+            FetchOutcome outcome;
+            if (_lastResult.Outcomes.TryGetValue(publisherId, out outcome) && outcome != FetchOutcome.Ok)
+                return outcome == FetchOutcome.NotFound
+                    ? "list not found — showing last known"
+                    : "could not be reached — showing last known";
+
+            return "";
+        }
+
+        private string LifecycleText(RegistryAddin addin, AddinStatus status)
+        {
+            if (addin.NoLongerPublished) return StatusText(status) + " · no longer published";
+            if (addin.Status == AddinLifecycle.Deprecated) return StatusText(status) + " · deprecated";
+            if (addin.FromCache) return StatusText(status) + " · cached";
+            return StatusText(status);
+        }
+
+        private static System.Drawing.Color LifecycleColour(RegistryAddin addin, AddinStatus status)
+            => addin.NoLongerPublished || addin.Status == AddinLifecycle.Deprecated
+                ? System.Drawing.Color.DarkGoldenrod
+                : StatusColour(status);
+
+        private static string SummariseRefresh(RegistryResult r)
+        {
+            if (r.RootFetchFailed)
+                return $"Registry unavailable — showing {r.Addins.Count} addin(s) from cache";
+
+            int degraded = r.Outcomes.Values.Count(o => o != FetchOutcome.Ok);
+            string s = $"{r.Addins.Count} addin(s) from {r.Publishers.Count} publisher(s)";
+            if (degraded > 0) s += $" · {degraded} publisher(s) unavailable, showing last known";
+            return s;
         }
 
         private void OnAddinSelected(object? sender, EventArgs e)
@@ -270,6 +392,40 @@ namespace AddinFinder
         private void RunInstall(List<RegistryAddin> addins, bool isUpdate)
         {
             if (addins.Count == 0 || _installer == null) return;
+
+            // Informed consent before the first install of anything. Declining cancels.
+            if (!InstallDisclaimerDialog.EnsureAccepted(_contentPanel, _settings)) return;
+
+            // Clarion refuses to start if two addin folders declare the same Identity, so an install
+            // that would create one is refused here rather than breaking the IDE. Only a fresh
+            // install can introduce a clash -- updating an addin in place cannot.
+            if (!isUpdate)
+            {
+                var blocked = new List<string>();
+                foreach (var addin in addins.ToList())
+                {
+                    string? clash = _installer.FindConflictingIdentity(addin.Id, addin.Id);
+                    if (clash == null) continue;
+
+                    addins.Remove(addin);
+                    blocked.Add($"{addin.Name} — already installed as \"{Path.GetFileName(clash)}\""
+                                + DescribeClashOwner(addin.Id, clash));
+                }
+
+                if (blocked.Count > 0)
+                {
+                    MessageBox.Show(_contentPanel,
+                        "These addins were not installed, because Clarion would refuse to "
+                        + "start with two addins declaring the same identity:\r\n\r\n  "
+                        + string.Join("\r\n  ", blocked)
+                        + "\r\n\r\nRemove the existing copy first if you want to switch.",
+                        "Already installed under another name",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                    if (addins.Count == 0) return;
+                }
+            }
+
             SetButtons(false);
             _statusLabel.Text = $"{(isUpdate ? "Updating" : "Installing")} {addins.Count} addin(s)…";
 

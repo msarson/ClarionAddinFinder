@@ -43,6 +43,17 @@ Addin Finder is bootstrapped manually the first time; after that it updates itse
 
 ## Publishing an Addin
 
+Publishers list their own addins. Ask to be added to the
+[root registry](https://github.com/msarson/clarion-addin-registry), then keep your own
+`addins.json` — see [msarson/clarion-addins](https://github.com/msarson/clarion-addins) for a
+working example.
+
+Two rules are enforced by the client rather than by review: downloads must come from your own
+GitHub account, and an addin's `<Identity name>` must not already be in use — Clarion refuses
+to start when two addin folders declare the same one.
+
+### Legacy: submitting to the flat list
+
 Addins are listed in the community registry at:
 
 > **[msarson/clarion-addin-registry](https://github.com/msarson/clarion-addin-registry)**
@@ -57,7 +68,18 @@ To add your addin:
 
 ## How It Works
 
-- **Registry** — a JSON manifest hosted on GitHub. Addin Finder fetches it fresh on every refresh.
+- **Registry** — the root registry records **publishers**. Each publisher keeps their own addin
+  list in their own repository, and Addin Finder fetches every publisher's list on refresh. A
+  publisher's list URL is derived from their GitHub identity, and their downloads must come from
+  their own account — so being listed once does not become permission to serve anything from
+  anywhere later. The older flat list is still read while publishers migrate.
+- **If a publisher cannot be reached**, their addins are shown from the last known list, marked
+  as such. A publisher's outage never empties the pad, and never suggests their addins were
+  withdrawn — that takes repeated "not found" answers over several days, and even then nothing
+  already installed is touched.
+- **Publishers and addins have a lifecycle.** A publisher can mark an addin as deprecated, or
+  stop publishing altogether. Those are no longer offered, but stay visible to anyone who
+  already has them, with the publisher's own note.
 - **Install / Update** — the payload is downloaded to `%APPDATA%\ClarionAddinFinder\` first and moved into the Clarion addins directory only once it is complete, so a failed download never leaves a half-written folder where Clarion would find it. If the target file is locked (Clarion has it loaded), the operation is staged and applied on the next Clarion restart.
 - **Self-update** — Addin Finder reads `version.json` from this repo's `master` branch. If a newer version is available, an amber banner appears with an *Update Now* button. The update is always staged (since the running DLL is always locked), so the new build is written at one restart and runs from the next.
 - **What is installed** — tracked per Clarion installation in `%APPDATA%\ClarionAddinFinder\installed.v2.json`. If you run Clarion 10, 11, 11.1 and 12, each has its own `accessory\addins` folder and its own set of installed addins; installing into one does not affect the others. The file is a cache, not the record: every load checks the addin folder on disk and reads the version from the addin's own manifest, so if something changes behind Addin Finder's back the list corrects itself the next time Clarion starts. An addin already sitting in a Clarion's addins folder is picked up automatically, however it got there.

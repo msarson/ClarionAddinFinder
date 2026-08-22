@@ -2,6 +2,41 @@
 
 All notable changes to Addin Finder are documented here.
 
+## [0.8.0] - unreleased
+
+### Added
+- **Federated publisher registries.** The root registry now records **publishers** rather than
+  individual addins; each publisher hosts their own `addins.json` and publishes without anyone
+  else's involvement. A publisher's list URL is *derived* from their GitHub identity and the
+  branch recorded for them, never taken as a free-form URL.
+- **Download URLs are checked against the publisher.** An entry whose download does not come from
+  `github.com/<publisher>/` is dropped and logged. Being listed once is not permission to serve
+  binaries from anywhere later. A bad URL drops that entry, not the whole publisher.
+- **Identity collision check before installing.** Clarion refuses to start if two folders under
+  `accessory\addins` declare the same `<Identity name>`. An install that would create one is now
+  refused, naming the folder and publisher already holding it, rather than breaking the IDE. This
+  is what lets the registry avoid tracking which publisher owns which addin id.
+- **Addin and publisher lifecycle.** A publisher can mark an addin `deprecated` with a note, or be
+  recorded as `abandoned`; the registry can `revoke` a publisher. None of these are offered to new
+  users, and all stay visible to anyone who already has them installed.
+- **The list is grouped by publisher**, with each publisher's state in the group header. Entries
+  from the legacy list, adopted from disk, or placed by another installer group under **Unknown
+  publisher** -- never under a publisher we cannot actually vouch for.
+- **A one-time disclaimer before the first install**, recording a versioned acknowledgement so it
+  can return if the wording materially changes. It says the true things: addins run in-process in
+  the IDE with your privileges, nobody reviews their code, and publishers are approved by identity
+  rather than for quality.
+
+### Changed
+- A failed publisher fetch no longer empties the pad. Each publisher is fetched independently and
+  in parallel; a failure falls back to that publisher's cached list, shown as such.
+- **A publisher's list vanishing is treated as a staged signal, never a fact.** "Could not reach"
+  and "the server says it is not there" are kept distinct, and repeated 404s must persist across
+  several days before the list is described as withdrawn. A publisher's outage must never tell
+  users their addins were withdrawn, and nothing installed is ever touched on the strength of it.
+- The legacy flat `addins` list in the root registry is still read and merged, so nothing breaks
+  while publishers migrate. A publisher-sourced entry wins over a legacy entry with the same id.
+
 ## [0.7.1] - 2026-08-22
 
 ### Fixed

@@ -22,13 +22,99 @@ namespace AddinFinder
         public string ChangelogUrl  { get; set; } = "";
         public bool   Fork          { get; set; } = false;
         public string UpstreamUrl   { get; set; } = "";
+
+        /// <summary>
+        /// Publisher id this entry came from, or "" for an entry from the legacy flat list.
+        /// Provenance is shown to the user, so it must survive from fetch through to install.
+        /// </summary>
+        public string Publisher      { get; set; } = "";
+
+        /// <summary>"active" (default) or "deprecated". See AddinLifecycle.</summary>
+        public string Status         { get; set; } = AddinLifecycle.Active;
+
+        /// <summary>The publisher's own words about a non-active status. Shown verbatim.</summary>
+        public string StatusNote     { get; set; } = "";
+
+        /// <summary>Optional id of the addin that supersedes this one.</summary>
+        public string ReplacedBy     { get; set; } = "";
+
+        /// <summary>
+        /// Set when the entry came from cache rather than a live fetch, so the pad can say so
+        /// instead of presenting stale data as current.
+        /// </summary>
+        public bool   FromCache      { get; set; }
+
+        /// <summary>
+        /// Set when the publisher's list loaded successfully and this addin was NOT in it, but the
+        /// user has it installed. Distinct from a fetch failure -- see PublisherHealth.
+        /// </summary>
+        public bool   NoLongerPublished { get; set; }
+
+        public bool IsOffered => Status == AddinLifecycle.Active && !NoLongerPublished;
+    }
+
+    public static class AddinLifecycle
+    {
+        public const string Active     = "active";
+        public const string Deprecated = "deprecated";
+    }
+
+    public static class PublisherStatus
+    {
+        /// <summary>Normal.</summary>
+        public const string Active = "active";
+
+        /// <summary>The publisher's own declaration that they have stopped. Ordinary and blameless.</summary>
+        public const string Abandoned = "abandoned";
+
+        /// <summary>The registry's action, for safety. Deliberately distinct from Abandoned.</summary>
+        public const string Revoked = "revoked";
+    }
+
+    /// <summary>A publisher recorded in the root registry.</summary>
+    public class Publisher
+    {
+        public string Id         { get; set; } = "";
+        public string Name       { get; set; } = "";
+        public string Repo       { get; set; } = "";
+
+        /// <summary>
+        /// Default branch of the publisher's repo. Recorded rather than assumed: msarson/clarion-addins
+        /// is on "main" while the root registry is on "master", and guessing produces a 404 that looks
+        /// exactly like a deleted repository.
+        /// </summary>
+        public string Branch     { get; set; } = "";
+
+        public string Status     { get; set; } = PublisherStatus.Active;
+        public string StatusNote { get; set; } = "";
+
+        /// <summary>Where this publisher's addin list lives. Derived, never taken from the registry.</summary>
+        public string AddinsUrl =>
+            "https://raw.githubusercontent.com/" + Id + "/" + Repo + "/" +
+            (string.IsNullOrEmpty(Branch) ? "main" : Branch) + "/addins.json";
+
+        /// <summary>
+        /// A download URL may only serve from the publisher's own GitHub account. Derived from the id,
+        /// so it costs no registry maintenance -- and it stops "approved once" becoming permission to
+        /// serve arbitrary binaries from anywhere later.
+        /// </summary>
+        public bool OwnsDownloadUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return true;   // nothing to serve, nothing to check
+            string prefix = "https://github.com/" + Id + "/";
+            return url.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     public class AddinRegistry
     {
-        public int                   Version  { get; set; }
-        public string                Updated  { get; set; } = "";
-        public List<RegistryAddin>   Addins   { get; set; } = new List<RegistryAddin>();
+        public int                   Version    { get; set; }
+        public string                Updated    { get; set; } = "";
+        public List<RegistryAddin>   Addins     { get; set; } = new List<RegistryAddin>();
+        public List<Publisher>       Publishers { get; set; } = new List<Publisher>();
+
+        /// <summary>Publisher ids the registry has revoked. Empty in normal operation.</summary>
+        public List<string>          Revoked    { get; set; } = new List<string>();
     }
 
     public class InstalledAddin
@@ -50,6 +136,13 @@ namespace AddinFinder
         /// accessory/addins yet, so checking for them there would wrongly delete the entry.
         /// </summary>
         public bool   Staged        { get; set; }
+
+        /// <summary>
+        /// Publisher this copy came from, or "" when unknown -- entries adopted from disk, and
+        /// anything another installer put there, never have one. Shown to the user, so an empty
+        /// value must read as "unknown", never as a default publisher.
+        /// </summary>
+        public string Publisher     { get; set; } = "";
     }
 
     /// <summary>The whole installed.json document. Version 2 keys entries by Clarion root.</summary>

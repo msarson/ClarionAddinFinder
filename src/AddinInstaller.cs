@@ -109,6 +109,69 @@ namespace AddinFinder
             return applied;
         }
 
+        /// <summary>
+        /// A folder under accessory\addins, other than this addin's own, that already declares the
+        /// same Identity. Returns its path, or null.
+        ///
+        /// Clarion loads every subfolder of accessory\addins at startup and refuses to start at all
+        /// if two of them declare the same &lt;Identity name&gt; -- the user gets "Identity name used by
+        /// multiple addins" and the IDE will not open. Since the folder name is the addin id, two
+        /// publishers listing the same id would also silently overwrite each other.
+        ///
+        /// Checking here is what lets the registry avoid tracking which publisher owns which id: the
+        /// clash surfaces once, to the one user who would actually hit it, at the only moment it can
+        /// be prevented.
+        /// </summary>
+        public string? FindConflictingIdentity(string addinId, string identityName)
+        {
+            if (string.IsNullOrEmpty(identityName)) return null;
+            if (!Directory.Exists(_addinsRoot)) return null;
+
+            string[] folders;
+            try { folders = Directory.GetDirectories(_addinsRoot); }
+            catch { return null; }
+
+            foreach (string folder in folders)
+            {
+                if (string.Equals(Path.GetFileName(folder), addinId, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                try
+                {
+                    foreach (string manifest in Directory.GetFiles(folder, "*.addin",
+                                                                   SearchOption.TopDirectoryOnly))
+                        if (string.Equals(ReadIdentityName(manifest), identityName,
+                                          StringComparison.OrdinalIgnoreCase))
+                            return folder;
+                }
+                catch { /* an unreadable folder is not evidence of a clash */ }
+            }
+            return null;
+        }
+
+        /// <summary>The &lt;Identity name&gt; of a manifest, or "" if it cannot be read.</summary>
+        public static string ReadIdentityName(string manifestPath)
+        {
+            try
+            {
+                string xml = File.ReadAllText(manifestPath, System.Text.Encoding.UTF8);
+                int i = xml.IndexOf("<Identity", StringComparison.OrdinalIgnoreCase);
+                if (i < 0) return "";
+                int end = xml.IndexOf('>', i);
+                if (end < 0) return "";
+                string tag = xml.Substring(i, end - i);
+
+                int n = tag.IndexOf("name=", StringComparison.OrdinalIgnoreCase);
+                if (n < 0) return "";
+                int q1 = tag.IndexOf('"', n);
+                if (q1 < 0) return "";
+                int q2 = tag.IndexOf('"', q1 + 1);
+                if (q2 < 0) return "";
+                return tag.Substring(q1 + 1, q2 - q1 - 1).Trim();
+            }
+            catch { return ""; }
+        }
+
         /// <summary>Returns true if the update was staged (files locked); false if applied immediately.</summary>
         public bool Install(RegistryAddin addin, out bool staged)
         {
@@ -158,7 +221,7 @@ namespace AddinFinder
             // Record the version only once the files are where they belong. On the staged path the
             // payload is still in pending, so the entry is marked staged and exempted from the disk
             // reconciliation until ApplyPendingUpdates moves it.
-            _store.MarkInstalled(_clarionRoot, addin.Id, addin.Version, staged);
+            _store.MarkInstalled(_clarionRoot, addin.Id, addin.Version, staged, addin.Publisher);
             return true;
         }
 

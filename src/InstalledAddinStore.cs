@@ -72,7 +72,8 @@ namespace AddinFinder
             return doc.Installed.Where(a => ClarionRoot.Same(a.Root, clarionRoot)).ToList();
         }
 
-        public void MarkInstalled(string clarionRoot, string id, string version, bool staged)
+        public void MarkInstalled(string clarionRoot, string id, string version, bool staged,
+                                  string publisher = "")
         {
             InstalledStore doc = ReadDocument();
             doc.Installed.RemoveAll(a => a.Id == id && ClarionRoot.Same(a.Root, clarionRoot));
@@ -83,6 +84,7 @@ namespace AddinFinder
                 Version     = version,
                 InstalledAt = DateTime.Today.ToString("yyyy-MM-dd"),
                 Staged      = staged,
+                Publisher   = publisher,
             });
             Write(doc);
         }
