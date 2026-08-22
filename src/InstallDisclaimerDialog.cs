@@ -19,6 +19,11 @@ namespace AddinFinder
     /// The split is deliberate. Repeating the same warning is how people are taught to click
     /// through it -- the second identical dialog makes consent weaker, not stronger. So the part
     /// that repeats is the part that is different every time: a name, an account, a link to read.
+    ///
+    /// One case is never remembered: an addin with no identified publisher. There is no party to
+    /// have made a decision about, so accepting one unattributed addin carries no information about
+    /// the next, and the warning is due again every single time. It names the addins in question,
+    /// which is what keeps a repeated warning informative rather than wallpaper.
     /// </summary>
     internal class InstallDisclaimerDialog : Form
     {
@@ -33,6 +38,21 @@ namespace AddinFinder
             "  •  Each addin is covered by its own licence, which will almost certainly disclaim " +
             "any warranty.\r\n" +
             "  •  Problems with an addin are for its publisher, not for Addin Finder.";
+
+        /// <summary>
+        /// Publishers in this batch the user must be shown before installing.
+        ///
+        /// A named publisher is asked about once and then remembered. The unidentified source --
+        /// the empty publisher id -- is never remembered, because there is no party to have made a
+        /// decision about. Consenting to one unattributed addin carries no information about the
+        /// next one, so it is asked every time.
+        /// </summary>
+        public static List<string> PendingPublishers(AddinFinderSettings settings,
+                                                     IEnumerable<RegistryAddin> addins)
+            => addins.Select(a => a.Publisher ?? "")
+                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                     .Where(id => id.Length == 0 || !settings.HasAcknowledged(id))
+                     .ToList();
 
         private InstallDisclaimerDialog(string? generalTerms, string publisherHeading,
                                         string publisherDetail, string? publisherUrl)
@@ -144,18 +164,14 @@ namespace AddinFinder
                                           IEnumerable<Publisher> knownPublishers)
         {
             var publishers = knownPublishers.ToList();
-
-            // Distinct publishers in this batch that the user has not installed from before.
-            var pending = addins.Select(a => a.Publisher ?? "")
-                                .Distinct(StringComparer.OrdinalIgnoreCase)
-                                .Where(id => !settings.HasAcknowledged(id))
-                                .ToList();
+            var batch      = addins.ToList();
+            var pending    = PendingPublishers(settings, batch);
 
             bool needGeneral = !settings.HasAcceptedTerms;
             if (!needGeneral && pending.Count == 0) return true;
 
             // If nothing new about the publisher but the terms changed, still say who this is.
-            if (pending.Count == 0) pending.Add(addins.Select(a => a.Publisher ?? "").First());
+            if (pending.Count == 0) pending.Add(batch.Select(a => a.Publisher ?? "").First());
 
             foreach (string publisherId in pending)
             {
@@ -167,10 +183,15 @@ namespace AddinFinder
                 {
                     // No approved publisher stands behind this. That is worth saying plainly rather
                     // than dressing up -- it is the weakest provenance the pad can offer.
-                    heading = "This addin has no identified publisher";
-                    detail  = "It comes from the older registry list, or was found already installed. "
-                            + "Nobody is recorded as responsible for it, and there is no publisher to "
-                            + "report problems to.";
+                    var names = batch.Where(a => string.IsNullOrEmpty(a.Publisher))
+                                     .Select(a => a.Name).ToList();
+                    heading = names.Count == 1
+                        ? names[0] + " has no identified publisher"
+                        : "These addins have no identified publisher";
+                    detail  = (names.Count > 1 ? string.Join(", ", names) + ". " : "")
+                            + "From the older registry list, or found already installed. Nobody is "
+                            + "recorded as responsible for it, and there is no publisher to report "
+                            + "problems to.";
                 }
                 else
                 {
@@ -194,7 +215,10 @@ namespace AddinFinder
                     settings.AcceptedTermsVersion = AddinFinderSettings.CurrentTermsVersion;
                     needGeneral = false;
                 }
-                settings.Acknowledge(publisherId);
+                // An unidentified source is never remembered as acknowledged. There is nobody to
+                // have decided about: accepting one unattributed addin says nothing about the next,
+                // so the warning is due again every time one is installed.
+                if (publisherId.Length > 0) settings.Acknowledge(publisherId);
             }
 
             settings.Save();

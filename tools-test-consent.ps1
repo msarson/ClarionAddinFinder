@@ -76,6 +76,39 @@ $again = Settings-For $c11
 Check 'Clarion 11.1 survives Clarion 12 saving' ($again.HasAcknowledged('msarson')) 'clobbered by the other root'
 Check 'and did not inherit its publisher'       (-not $again.HasAcknowledged('asantarelli')) 'leaked backwards'
 
+Write-Host "`n9. An unknown publisher is asked about EVERY time"
+$dlg = $asm.GetType('AddinFinder.InstallDisclaimerDialog')
+$pending = $dlg.GetMethod('PendingPublishers', [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::Public)
+
+function New-Addin([string]$id, [string]$publisher) {
+    $a = $asm.CreateInstance('AddinFinder.RegistryAddin')
+    $a.Id = $id; $a.Name = $id; $a.Publisher = $publisher
+    return $a
+}
+$addinType = $asm.GetType('AddinFinder.RegistryAddin')
+$listOf = [System.Collections.Generic.List`1].MakeGenericType($addinType)
+
+$s = Settings-For $c11
+$unknown = [Activator]::CreateInstance($listOf); $unknown.Add((New-Addin 'OldThing' ''))
+Check 'unknown publisher is pending' (@($pending.Invoke($null, @($s, $unknown))).Count -eq 1) 'not prompted'
+
+$s.Acknowledge('')          # even if something recorded it
+$s.Save()
+Check 'still pending after being acknowledged' `
+    (@($pending.Invoke($null, @($s, $unknown))).Count -eq 1) `
+    'an unattributed addin was remembered -- the warning would stop appearing'
+
+$named = [Activator]::CreateInstance($listOf); $named.Add((New-Addin 'GitPane' 'msarson'))
+$s2 = Settings-For $c11
+$s2.Acknowledge('msarson'); $s2.Save()
+Check 'a NAMED publisher is asked once only' `
+    (@($pending.Invoke($null, @($s2, $named))).Count -eq 0) 'named publisher re-prompted'
+
+$mixed = [Activator]::CreateInstance($listOf)
+$mixed.Add((New-Addin 'GitPane' 'msarson')); $mixed.Add((New-Addin 'OldThing' ''))
+Check 'a mixed batch prompts only for the unknown one' `
+    (@($pending.Invoke($null, @($s2, $mixed))).Count -eq 1) 'wrong number prompted'
+
 Remove-Item $sandbox -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host ''
 if ($fail -eq 0) { Write-Host 'ALL CHECKS PASSED' -ForegroundColor Green; exit 0 }

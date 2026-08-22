@@ -35,6 +35,11 @@ All notable changes to Addin Finder are documented here.
   it, so the part that recurs is the part that differs every time: a name, an account, a link to
   read before trusting it.
 
+  One case is never remembered: an addin with **no identified publisher**. There is no party to
+  have made a decision about, so accepting one unattributed addin carries no information about the
+  next, and the warning appears every single time one is installed. It names the addins in
+  question, which is what keeps a repeated warning informative rather than wallpaper.
+
 - **A one-time explanation on upgrading**, shown inside the pad in place of its usual contents
   rather than as a dialog. Clarion restores whichever pads were open last time, so a docked pad is
   created during start-up and a modal there interrupts the IDE coming up before the user has asked
