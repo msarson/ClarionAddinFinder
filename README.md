@@ -58,8 +58,9 @@ To add your addin:
 ## How It Works
 
 - **Registry** — a JSON manifest hosted on GitHub. Addin Finder fetches it fresh on every refresh.
-- **Install / Update** — DLL (and optional `.addin` file or zip) is downloaded to a staging folder in `%APPDATA%\ClarionAddinFinder\pending\` and copied into the Clarion addins directory. If the target file is locked (Clarion has it loaded), the operation is staged and applied on the next Clarion restart.
-- **Self-update** — Addin Finder reads `version.json` from this repo's `main` branch. If a newer version is available, an amber banner appears with an *Update Now* button. The update is always staged (since the running DLL is always locked).
+- **Install / Update** — the payload is downloaded to `%APPDATA%\ClarionAddinFinder\` first and moved into the Clarion addins directory only once it is complete, so a failed download never leaves a half-written folder where Clarion would find it. If the target file is locked (Clarion has it loaded), the operation is staged and applied on the next Clarion restart.
+- **Self-update** — Addin Finder reads `version.json` from this repo's `master` branch. If a newer version is available, an amber banner appears with an *Update Now* button. The update is always staged (since the running DLL is always locked), so the new build is written at one restart and runs from the next.
+- **What is installed** — tracked per Clarion installation in `%APPDATA%\ClarionAddinFinder\installed.json`. If you run Clarion 10, 11, 11.1 and 12, each has its own `accessory\addins` folder and its own set of installed addins; installing into one does not affect the others. The file is a cache, not the record: every load checks the addin folder on disk and reads the version from the addin's own manifest, so if something changes behind Addin Finder's back the list corrects itself the next time Clarion starts.
 
 ---
 
@@ -69,7 +70,16 @@ To add your addin:
 dotnet build -c Release
 ```
 
-Requires .NET SDK 6+ to build (targets `net48`).
+Requires .NET SDK 6+ to build (targets `net48`). Set `CLARION_ROOT` if Clarion is not at
+`C:\Clarion\Clarion11.1` — the build references `ICSharpCode.Core.dll` and
+`ICSharpCode.SharpDevelop.dll` from its `bin` folder.
+
+`tools-test-store.ps1` exercises the installed-addin store against a simulated two-Clarion
+machine. Run it under **32-bit** Windows PowerShell, since the assembly is `PlatformTarget=x86`:
+
+```
+C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe -File tools-test-store.ps1
+```
 
 ---
 

@@ -2,7 +2,7 @@
 
 All notable changes to Addin Finder are documented here.
 
-## [0.7.0] - unreleased
+## [0.7.0] - 2026-08-22
 
 ### Fixed
 - **Installed addins are now tracked per Clarion installation** ([#6](https://github.com/msarson/ClarionAddinFinder/issues/6)).
