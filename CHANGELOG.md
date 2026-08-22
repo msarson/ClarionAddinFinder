@@ -5,6 +5,27 @@ All notable changes to Addin Finder are documented here.
 ## [0.8.1] - unreleased
 
 ### Added
+- **Addins distributed as a Windows setup installer.** Some addins ship as a setup `.exe` rather
+  than as files Addin Finder can place. A registry entry with a `githubRepo` field is treated as
+  one of these: the current release is resolved from GitHub, and the button becomes **Download**.
+
+  Addin Finder downloads the installer and stops there. It does not run it. The setup elevates,
+  executes code we have just told the user nobody reviews, and then chooses its own Clarion targets
+  — possibly not the one running the pad. Handing over the file is the honest boundary: the user
+  decides whether to run it, and Windows asks about elevation rather than us arranging it.
+
+  Nothing is recorded as installed, and **Remove is not offered** — those files belong to the
+  addin's own uninstaller, and deleting them behind its back would leave Windows believing it is
+  still there. The addin still appears as installed afterwards, because the disk reconciliation
+  added in 0.7.1 finds it like anything else.
+
+  The registry records a repository rather than a download URL, because publishers rename the asset
+  every release — `ClarionAssistant-5.8-Setup.exe`, then `-5.8.1-` — so a pinned link would 404
+  almost immediately. Resolving through the releases API also means **nobody maintains a version
+  for these**: Clarion Assistant shipped eight releases in seven weeks, and any hand-kept entry
+  would have been stale within days of each one. Answers are cached for six hours, because
+  unauthenticated GitHub requests are limited to 60 an hour *per IP* — shared across everyone behind
+  one office connection.
 - **Addin Finder now warns when two addins under the same Clarion declare the same
   `<Identity name>`.** Clarion loads every subfolder of `accessory\addins` at start-up and refuses
   to start *at all* when that happens — the user gets "Identity name used by multiple addins" and

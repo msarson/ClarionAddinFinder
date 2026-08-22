@@ -64,6 +64,68 @@ namespace AddinFinder
         }
 
         /// <summary>
+        /// Reads a GitHub /releases/latest response down to the tag and the installer asset.
+        ///
+        /// The asset is chosen by extension rather than by name, because the name changes every
+        /// release -- which is the whole reason the URL cannot live in the registry.
+        /// </summary>
+        public static GithubRelease? ParseGithubRelease(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            var raw = _js.Deserialize<Dictionary<string, object>>(json);
+
+            var release = new GithubRelease { Tag = S(raw, "tag_name") };
+            if (release.Tag.Length == 0) return null;
+
+            var assets = Entries(raw, "assets").ToList();
+            var chosen = assets.FirstOrDefault(a => S(a, "name").EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                      ?? assets.FirstOrDefault(a => S(a, "name").EndsWith(".msi", StringComparison.OrdinalIgnoreCase));
+
+            // A release with exactly one asset and an unexpected extension is still almost certainly
+            // the installer -- better than reporting an update the user cannot get.
+            if (chosen == null && assets.Count == 1) chosen = assets[0];
+            if (chosen == null) return null;
+
+            release.AssetName = S(chosen, "name");
+            release.AssetUrl  = S(chosen, "browser_download_url");
+            return release;
+        }
+
+        public static Dictionary<string, GithubRelease> ParseReleaseCache(string json)
+        {
+            var result = new Dictionary<string, GithubRelease>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(json)) return result;
+
+            var raw = _js.Deserialize<Dictionary<string, object>>(json);
+            foreach (var e in Entries(raw, "releases"))
+            {
+                string repo = S(e, "repo");
+                if (repo.Length == 0) continue;
+                result[repo] = new GithubRelease
+                {
+                    Tag       = S(e, "tag"),
+                    AssetUrl  = S(e, "assetUrl"),
+                    AssetName = S(e, "assetName"),
+                    CheckedOn = S(e, "checkedOn"),
+                };
+            }
+            return result;
+        }
+
+        public static string SerialiseReleaseCache(Dictionary<string, GithubRelease> cache)
+            => _js.Serialize(new
+            {
+                releases = cache.Select(pair => new
+                {
+                    repo      = pair.Key,
+                    tag       = pair.Value.Tag,
+                    assetUrl  = pair.Value.AssetUrl,
+                    assetName = pair.Value.AssetName,
+                    checkedOn = pair.Value.CheckedOn,
+                }).ToList()
+            });
+
+        /// <summary>
         /// Reads settings in either shape into the instance, which already knows which Clarion it
         /// is for. A pre-v2 document has no per-Clarion section, so its values are adopted for that
         /// root -- see AddinFinderSettings.AdoptLegacy.
@@ -191,6 +253,7 @@ namespace AddinFinder
             changelogUrl    = a.ChangelogUrl,
             fork            = a.Fork,
             upstreamUrl     = a.UpstreamUrl,
+            githubRepo      = a.GithubRepo,
             status          = a.Status,
             statusNote      = a.StatusNote,
             replacedBy      = a.ReplacedBy,
@@ -292,6 +355,7 @@ namespace AddinFinder
             ChangelogUrl    = S(a, "changelogUrl"),
             Fork            = Bool(a, "fork"),
             UpstreamUrl     = S(a, "upstreamUrl"),
+            GithubRepo      = S(a, "githubRepo"),
             Status          = Or(S(a, "status"), AddinLifecycle.Active),
             StatusNote      = S(a, "statusNote"),
             ReplacedBy      = S(a, "replacedBy"),

@@ -342,9 +342,12 @@ namespace AddinFinder
                 bool anyUpdatable    = selected.Any(a => GetStatus(a) == AddinStatus.UpdateAvailable);
                 bool anyUninstallable = selected.Any(a => GetStatus(a) == AddinStatus.Installed || GetStatus(a) == AddinStatus.UpdateAvailable);
 
-                _installButton.Enabled   = anyInstallable && _installer != null;
-                _updateButton.Enabled    = anyUpdatable   && _installer != null;
-                _uninstallButton.Enabled = anyUninstallable;
+                bool anySetup = selected.Any(a => a.IsSetup);
+                _installButton.Text      = anySetup && selected.All(a => a.IsSetup) ? "Download" : "Install";
+                _installButton.Enabled   = anyInstallable && (_installer != null || anySetup);
+                _updateButton.Enabled    = anyUpdatable   && (_installer != null || anySetup);
+                // Never offer to remove a mixed selection: some of it is not ours to remove.
+                _uninstallButton.Enabled = anyUninstallable && !anySetup;
                 _reinstallButton.Enabled = false;  // multi-select: no reinstall
                 return;
             }
@@ -364,10 +367,21 @@ namespace AddinFinder
             _detailReadme.Text      = string.IsNullOrEmpty(_selectedAddin.HomepageUrl) ? "" : "View README";
             _detailReadme.Tag       = _selectedAddin.HomepageUrl;
 
-            _installButton.Enabled   = status == AddinStatus.NotInstalled && _installer != null;
-            _updateButton.Enabled    = status == AddinStatus.UpdateAvailable && _installer != null;
-            _uninstallButton.Enabled = status == AddinStatus.Installed || status == AddinStatus.UpdateAvailable;
-            _reinstallButton.Enabled = status == AddinStatus.Installed && _installer != null;
+            // An addin that installs itself can always be downloaded, and can never be removed by
+            // us: its own uninstaller owns those files, and deleting them behind its back would
+            // leave Windows believing it is still installed.
+            bool setup = _selectedAddin != null && _selectedAddin.IsSetup;
+            bool haveInstaller = setup && _selectedAddin!.Release != null && _selectedAddin.Release!.IsUsable;
+
+            _installButton.Text      = setup ? "Download" : "Install";
+            _installButton.Enabled   = setup
+                ? haveInstaller && status != AddinStatus.Incompatible
+                : status == AddinStatus.NotInstalled && _installer != null;
+            _updateButton.Enabled    = setup
+                ? haveInstaller && status == AddinStatus.UpdateAvailable
+                : status == AddinStatus.UpdateAvailable && _installer != null;
+            _uninstallButton.Enabled = !setup && (status == AddinStatus.Installed || status == AddinStatus.UpdateAvailable);
+            _reinstallButton.Enabled = !setup && status == AddinStatus.Installed && _installer != null;
         }
 
         // Render the "by {author} · {license} · {framework}" line, linking just
@@ -416,8 +430,80 @@ namespace AddinFinder
 
         // ── Install / Update / Uninstall ──────────────────────────────────
 
-        private void OnInstallClick(object? sender, EventArgs e)   => RunInstall(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.NotInstalled).ToList(), isUpdate: false);
-        private void OnUpdateClick(object? sender, EventArgs e)    => RunInstall(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.UpdateAvailable).ToList(), isUpdate: true);
+        private void OnInstallClick(object? sender, EventArgs e)   => Run(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.NotInstalled).ToList(), isUpdate: false);
+        private void OnUpdateClick(object? sender, EventArgs e)    => Run(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.UpdateAvailable).ToList(), isUpdate: true);
+
+        /// <summary>
+        /// Splits a selection between addins we install and addins that install themselves.
+        ///
+        /// A mixed selection is normal -- the user picked several rows -- so each half is handled
+        /// on its own terms rather than refusing the lot.
+        /// </summary>
+        private void Run(List<RegistryAddin> addins, bool isUpdate)
+        {
+            var setups = addins.Where(a => a.IsSetup).ToList();
+            var ours   = addins.Where(a => !a.IsSetup).ToList();
+
+            if (ours.Count   > 0) RunInstall(ours, isUpdate);
+            if (setups.Count > 0) RunDownloadSetup(setups);
+        }
+
+        /// <summary>
+        /// Downloads a setup installer and shows the user where it is. Deliberately does not run
+        /// it: the installer elevates and chooses its own Clarion targets, and Addin Finder has
+        /// just told the user nobody reviews addin code. Starting it for them would sit badly
+        /// beside that.
+        /// </summary>
+        private void RunDownloadSetup(List<RegistryAddin> addins)
+        {
+            if (!InstallDisclaimerDialog.EnsureAccepted(
+                    _contentPanel, _settings, addins, _lastResult.Publishers)) return;
+
+            SetButtons(false);
+            _statusLabel.Text = $"Downloading {addins.Count} installer(s)...";
+
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                var saved  = new List<string>();
+                var failed = new List<string>();
+                foreach (var addin in addins)
+                {
+                    try   { saved.Add(AddinInstaller.DownloadSetup(addin)); }
+                    catch (Exception ex) { failed.Add($"{addin.Name}: {ex.Message}"); }
+                }
+
+                _contentPanel.BeginInvoke(new Action(() =>
+                {
+                    if (failed.Count > 0)
+                    {
+                        _lastError               = string.Join(Environment.NewLine, failed);
+                        _statusLabel.Text        = $"Errors: {string.Join("; ", failed)}";
+                        _copyErrorButton.Visible = true;
+                    }
+
+                    if (saved.Count > 0)
+                    {
+                        _statusLabel.Text = saved.Count == 1
+                            ? "Downloaded " + Path.GetFileName(saved[0]) + " - run it to install"
+                            : saved.Count + " installers downloaded - run them to install";
+
+                        MessageBox.Show(_contentPanel,
+                            "These addins install themselves, so Addin Finder has only downloaded "
+                            + "them:" + Environment.NewLine + Environment.NewLine + "    "
+                            + string.Join(Environment.NewLine + "    ", saved)
+                            + Environment.NewLine + Environment.NewLine
+                            + "Run the installer yourself when you are ready. It will ask for "
+                            + "elevation and choose which Clarion versions to install into.",
+                            "Downloaded", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                        // Select it in Explorer rather than launching it -- the user runs it.
+                        try { Process.Start("explorer.exe", "/select,\"" + saved[0] + "\""); }
+                        catch { }
+                    }
+                    SetButtons(true);
+                }));
+            });
+        }
         private void OnReinstallClick(object? sender, EventArgs e) => RunInstall(GetSelectedAddins().Where(a => GetStatus(a) == AddinStatus.Installed).ToList(), isUpdate: true);
 
         private void RunInstall(List<RegistryAddin> addins, bool isUpdate)

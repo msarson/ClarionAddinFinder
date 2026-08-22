@@ -37,13 +37,15 @@ namespace AddinFinder
 
         private readonly RegistryCache   _cache;
         private readonly PublisherHealth _health;
+        private readonly GithubReleases  _releases;
 
         public RegistryClient() : this(DefaultStoreDir) { }
 
         public RegistryClient(string storeDir)
         {
-            _cache  = new RegistryCache(storeDir);
-            _health = new PublisherHealth(storeDir);
+            _cache    = new RegistryCache(storeDir);
+            _health   = new PublisherHealth(storeDir);
+            _releases = new GithubReleases(storeDir);
         }
 
         /// <summary>Legacy shape, kept so existing callers compile. Prefer FetchAll.</summary>
@@ -108,7 +110,31 @@ namespace AddinFinder
                         fetched.Outcome == FetchOutcome.Ok ? fetched.Addins : _cache.Get(p.Id));
             }
 
+            ResolveSetupReleases(result.Addins, today);
             return result;
+        }
+
+        /// <summary>
+        /// Fills in the current release for addins that install themselves.
+        ///
+        /// Their version cannot come from the registry: publishers rename the asset every release,
+        /// and Clarion Assistant shipped eight releases in seven weeks -- a hand-kept entry would be
+        /// stale within days of each. Asking the releases API instead means nobody maintains it.
+        ///
+        /// A failure here leaves Release null, which reads as "no installer available" rather than
+        /// as an error. Losing a version number should not make a working addin look broken.
+        /// </summary>
+        private void ResolveSetupReleases(List<RegistryAddin> addins, DateTime today)
+        {
+            foreach (var addin in addins.Where(a => a.IsSetup))
+            {
+                try { addin.Release = _releases.Resolve(addin.GithubRepo, today); }
+                catch { /* cached answer, or none */ }
+
+                // The registry carries no version for these, so the release is the only source.
+                if (addin.Release != null && addin.Release.Version.Length > 0)
+                    addin.Version = addin.Release.Version;
+            }
         }
 
         /// <summary>

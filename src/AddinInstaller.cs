@@ -208,9 +208,43 @@ namespace AddinFinder
             catch { return ""; }
         }
 
+        /// <summary>
+        /// Downloads a setup installer and returns where it landed. Does not run it.
+        ///
+        /// Addin Finder is a downloader for these, not an installer. Running the setup would mean
+        /// elevating and executing code we have told the user nobody reviews, and the installer then
+        /// chooses its own Clarion targets -- possibly not the one running this pad. Handing over
+        /// the file and stepping back is the honest boundary: the user decides whether to run it,
+        /// and Windows asks about elevation rather than us arranging it on their behalf.
+        ///
+        /// Nothing is recorded as installed. The setup writes files we did not place, and the addin
+        /// is picked up by the normal disk reconciliation once they are there.
+        /// </summary>
+        public static string DownloadSetup(RegistryAddin addin)
+        {
+            if (addin.Release == null || !addin.Release.IsUsable)
+                throw new InvalidOperationException(
+                    addin.Name + ": no installer could be resolved from " + addin.GithubRepo);
+
+            // Downloads rather than a temp folder: the user has to find this and run it themselves,
+            // and a file Windows may clean up underneath them is a poor thing to point at.
+            string folder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            if (!Directory.Exists(folder))
+                folder = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+
+            string dest = Path.Combine(folder, addin.Release.AssetName);
+            Download(addin.Release.AssetUrl, dest);
+            return dest;
+        }
+
         /// <summary>Returns true if the update was staged (files locked); false if applied immediately.</summary>
         public bool Install(RegistryAddin addin, out bool staged)
         {
+            if (addin.IsSetup)
+                throw new InvalidOperationException(
+                    addin.Name + " installs itself; download the setup and let the user run it.");
+
             staged = false;
             string folder = Path.Combine(_addinsRoot, addin.Id);
 

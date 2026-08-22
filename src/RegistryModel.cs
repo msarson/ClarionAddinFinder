@@ -50,6 +50,27 @@ namespace AddinFinder
         /// </summary>
         public bool   NoLongerPublished { get; set; }
 
+        /// <summary>
+        /// "owner/repo" for an addin distributed as a Windows setup installer rather than as files
+        /// Addin Finder can place. Its presence is what puts the addin in download-only mode.
+        ///
+        /// A repository rather than a URL, because publishers rename the asset every release
+        /// (ClarionAssistant-5.8-Setup.exe, then -5.8.1-), so a pinned link 404s almost immediately.
+        /// The current tag and asset are resolved from the releases API instead, which also means
+        /// nobody has to maintain a version here.
+        /// </summary>
+        public string GithubRepo   { get; set; } = "";
+
+        /// <summary>
+        /// True when this addin installs itself. Addin Finder downloads the installer and gets out
+        /// of the way: the setup elevates, picks its own Clarion targets, and writes files we did
+        /// not place -- so managing it as ours would be a claim we cannot support.
+        /// </summary>
+        public bool IsSetup => GithubRepo.Length > 0;
+
+        /// <summary>Resolved at refresh from the releases API. Null for a normally-packaged addin.</summary>
+        public GithubRelease? Release { get; set; }
+
         public bool IsOffered => Status == AddinLifecycle.Active && !NoLongerPublished;
     }
 
