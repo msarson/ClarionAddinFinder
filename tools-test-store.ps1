@@ -38,7 +38,8 @@ New-FakeClarion $c12
 Add-FakeAddin $c111 'ClarionMarkdownEditor' '1.3.0'
 
 # A v1 store: flat list, no root, and a stale version.
-$storePath = Join-Path $storeDir 'installed.json'
+$storePath   = Join-Path $storeDir 'installed.json'
+$v2Path      = Join-Path $storeDir 'installed.v2.json'
 Set-Content -Path $storePath -Encoding UTF8 -Value `
     '{"addins":[{"id":"ClarionMarkdownEditor","version":"1.0.2","installedAt":"2026-05-01"}]}'
 
@@ -66,7 +67,10 @@ $r = $store.Load($c111)
 Check 'claimed for 11.1' ($r.Count -eq 1) "got $($r.Count) entries"
 Check 'version re-read from the manifest, not the stale JSON' `
     ($r.Count -eq 1 -and $r[0].Version -eq '1.3.0') "version=$(if($r.Count){$r[0].Version})"
-Check 'v1 backup written' (Test-Path (Join-Path $storeDir 'installed.json.v1.bak')) 'no .v1.bak'
+Check 'v2 written to its own file' (Test-Path $v2Path) 'no installed.v2.json'
+Check 'installed.json left untouched for pre-0.7.1 builds' `
+    ((Get-Content $storePath -Raw).Trim() -eq '{"addins":[{"id":"ClarionMarkdownEditor","version":"1.0.2","installedAt":"2026-05-01"}]}') `
+    'installed.json was modified'
 
 Write-Host "`n2. the other Clarion must NOT inherit it (the #6 bug)"
 $r12 = $store.Load($c12)
@@ -106,7 +110,7 @@ Check 'staged entry survives with no folder' `
     (($r | Where-Object { $_.Id -eq 'FlattenCode' }).Count -eq 1) 'staged entry was dropped'
 
 Write-Host "`nFinal installed.json:" -ForegroundColor DarkGray
-Get-Content $storePath
+Get-Content $v2Path
 
 Remove-Item $sandbox -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host ''

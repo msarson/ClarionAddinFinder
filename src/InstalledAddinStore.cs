@@ -27,7 +27,8 @@ namespace AddinFinder
 
         private readonly string _storeDir;
         private readonly string _storePath;
-        private readonly string _backupPath;
+        private readonly string _legacyPath;
+        private readonly string _legacyBackupPath;
 
         public InstalledAddinStore() : this(DefaultStoreDir) { }
 
@@ -38,9 +39,17 @@ namespace AddinFinder
         /// </summary>
         public InstalledAddinStore(string storeDir)
         {
-            _storeDir   = storeDir;
-            _storePath  = Path.Combine(storeDir, "installed.json");
-            _backupPath = Path.Combine(storeDir, "installed.json.v1.bak");
+            _storeDir = storeDir;
+
+            // The v2 format lives in its OWN file. Versions up to 0.6.0 read installed.json by
+            // looking for an "addins" key; handed a v2 document they conclude that nothing is
+            // installed, and the next install they perform writes v1 back over the top, destroying
+            // it. Since each Clarion carries its own copy of AddinFinder and updates on its own
+            // schedule, an old and a new build routinely share this folder -- so the new format
+            // must not occupy the filename the old one owns.
+            _storePath        = Path.Combine(storeDir, "installed.v2.json");
+            _legacyPath       = Path.Combine(storeDir, "installed.json");
+            _legacyBackupPath = Path.Combine(storeDir, "installed.json.v1.bak");
         }
 
         /// <summary>
@@ -56,7 +65,7 @@ namespace AddinFinder
             if (string.IsNullOrEmpty(clarionRoot)) return new List<InstalledAddin>();
 
             InstalledStore doc = ReadDocument();
-            bool changed = ClaimLegacy(doc, clarionRoot);
+            bool changed = Adopt(doc, clarionRoot);
             changed |= Reconcile(doc, clarionRoot);
             if (changed) Write(doc);
 
@@ -140,33 +149,56 @@ namespace AddinFinder
         }
 
         /// <summary>
-        /// Give this root any legacy (pre-v2) entry it can prove on disk.
+        /// Record every addin that is on disk under this root but missing from the store.
         ///
-        /// A v1 file records no root, and this process can only ever see one Clarion, so the entries
-        /// cannot be attributed all at once. They wait in LegacyUnclaimed until a root that actually
-        /// has the addin loads and claims them -- which each Clarion does the first time it runs.
+        /// Reconciliation alone only ever PRUNES, which makes the store a one-way cache and loses
+        /// information the disk still has. Two cases need adopting, and the second is why this
+        /// exists at all:
+        ///
+        /// - A v1 file recorded one entry per addin with no root, so an addin installed into three
+        ///   Clarions appeared once. Attributing that entry to the first root to start would leave
+        ///   the other two reporting the addin as not installed while it sat in their addins folder
+        ///   -- and the pad would offer to install over a working copy.
+        ///
+        /// - Anything that put an addin there without going through us: a hand-unzipped copy, or
+        ///   another installer. Reporting it as absent invites exactly the same overwrite.
+        ///
+        /// The id is the folder name, which is how installs are keyed, and the version comes from
+        /// the manifest. A pre-v2 entry with the same id supplies the original install date, and is
+        /// deliberately NOT consumed -- every root that has the addin deserves that date, and only
+        /// the disk decides which roots those are.
         /// </summary>
-        private static bool ClaimLegacy(InstalledStore doc, string clarionRoot)
+        private static bool Adopt(InstalledStore doc, string clarionRoot)
         {
-            if (doc.LegacyUnclaimed.Count == 0) return false;
+            string addinsFolder = ClarionRoot.AddinsFolder(clarionRoot);
+            if (!Directory.Exists(addinsFolder)) return false;
+
+            string[] folders;
+            try { folders = Directory.GetDirectories(addinsFolder); }
+            catch { return false; }
 
             bool changed = false;
-            foreach (var legacy in doc.LegacyUnclaimed.ToList())
+            foreach (string folder in folders)
             {
-                string? manifest = FindManifest(clarionRoot, legacy.Id);
+                string id = Path.GetFileName(folder);
+                if (doc.Installed.Any(a => a.Id == id && ClarionRoot.Same(a.Root, clarionRoot))) continue;
+
+                string? manifest = FindManifest(clarionRoot, id);
                 if (manifest == null) continue;
 
+                var legacy    = doc.LegacyUnclaimed.FirstOrDefault(a => a.Id == id);
                 string onDisk = ReadIdentityVersion(manifest);
-                doc.Installed.RemoveAll(a => a.Id == legacy.Id && ClarionRoot.Same(a.Root, clarionRoot));
+
                 doc.Installed.Add(new InstalledAddin
                 {
-                    Id          = legacy.Id,
+                    Id          = id,
                     Root        = ClarionRoot.Normalise(clarionRoot),
-                    Version     = onDisk.Length > 0 ? onDisk : legacy.Version,
-                    InstalledAt = legacy.InstalledAt,
+                    Version     = onDisk.Length > 0 ? onDisk : (legacy != null ? legacy.Version : ""),
+                    InstalledAt = legacy != null
+                                    ? legacy.InstalledAt
+                                    : DateTime.Today.ToString("yyyy-MM-dd"),
                     Staged      = false,
                 });
-                doc.LegacyUnclaimed.Remove(legacy);
                 changed = true;
             }
             return changed;
@@ -213,22 +245,44 @@ namespace AddinFinder
         {
             try
             {
-                if (!File.Exists(_storePath)) return new InstalledStore();
-                string json = File.ReadAllText(_storePath, Encoding.UTF8);
-                InstalledStore doc = SimpleJsonParser.ParseStore(json);
+                if (File.Exists(_storePath))
+                    return SimpleJsonParser.ParseStore(File.ReadAllText(_storePath, Encoding.UTF8));
 
-                // v1 had no "version" and no per-entry root. Park those entries for claiming and
-                // keep a copy of the old file for one release -- discarding it would show the user
-                // an empty install list and invite reinstalling over folders already in place.
-                if (doc.Version < 2 && doc.LegacyUnclaimed.Count > 0)
-                {
-                    try { File.Copy(_storePath, _backupPath, overwrite: true); } catch { }
-                    doc.Version = 2;
-                    Write(doc);
-                }
+                // No v2 file yet: seed one from installed.json and leave that file alone from here.
+                // ParseStore reads either shape, which matters because 0.7.0 wrote a v2 document
+                // into installed.json -- on those machines the seed already carries roots.
+                if (!File.Exists(_legacyPath)) return new InstalledStore();
+
+                InstalledStore doc = SimpleJsonParser.ParseStore(
+                    File.ReadAllText(_legacyPath, Encoding.UTF8));
+                doc.Version = 2;
+                Write(doc);
+                RestoreLegacyFileForOlderBuilds();
                 return doc;
             }
             catch { return new InstalledStore(); }
+        }
+
+        /// <summary>
+        /// Undo 0.7.0's rewrite of installed.json.
+        ///
+        /// 0.7.0 replaced that file with a v2 document. Builds up to 0.6.0 parse it as "nothing
+        /// installed" and overwrite it on their next install, so any Clarion still running an older
+        /// AddinFinder was left broken by the upgrade of a different Clarion. Its backup is the
+        /// original v1 content, so putting it back restores those builds. We never write that file
+        /// again -- v2 lives in installed.v2.json.
+        /// </summary>
+        private void RestoreLegacyFileForOlderBuilds()
+        {
+            try
+            {
+                if (!File.Exists(_legacyBackupPath)) return;
+                InstalledStore current = SimpleJsonParser.ParseStore(
+                    File.ReadAllText(_legacyPath, Encoding.UTF8));
+                if (current.Version < 2) return;   // still genuine v1, nothing to undo
+                File.Copy(_legacyBackupPath, _legacyPath, overwrite: true);
+            }
+            catch { /* best effort -- the v2 store is already written and authoritative */ }
         }
 
         private void Write(InstalledStore doc)

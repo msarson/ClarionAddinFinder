@@ -2,6 +2,24 @@
 
 All notable changes to Addin Finder are documented here.
 
+## [0.7.1] - 2026-08-22
+
+### Fixed
+- **0.7.0 broke Addin Finder in any Clarion still running an older build.** It rewrote
+  `installed.json` in the new format, and builds up to 0.6.0 read that file by looking
+  for an `addins` key -- finding none, they report nothing installed, and the next
+  install they perform writes the old format back over the top, destroying the new
+  data. Each Clarion carries its own copy of Addin Finder and updates on its own
+  schedule, so upgrading one Clarion could break another. The new format now lives in
+  its **own file**, `installed.v2.json`, and `installed.json` is never written again.
+  If 0.7.0 already rewrote it, 0.7.1 restores it from the backup 0.7.0 left behind.
+- **An addin present in more than one Clarion was only recorded for the first one.**
+  A pre-0.7.0 file recorded one entry per addin with no root, so the first Clarion to
+  start claimed it and the others reported the addin as not installed while it sat in
+  their addins folder -- and the pad would offer to install over a working copy. Any
+  addin found on disk is now adopted for that Clarion, whether it came from a
+  pre-0.7.0 entry, another Clarion, a hand-unzipped copy, or another installer.
+
 ## [0.7.0] - 2026-08-22
 
 ### Fixed
