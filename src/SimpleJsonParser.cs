@@ -28,6 +28,10 @@ namespace AddinFinder
             foreach (var a in Entries(raw, "addins"))
                 registry.Addins.Add(MapAddin(a));
 
+            // Setup addins in the root registry, for a publisher who has not federated yet. Same
+            // separate key, for the same reason: a build before 0.8.1 must not see them.
+            foreach (var a in SetupEntries(raw, "")) registry.Addins.Add(a);
+
             foreach (var p in Entries(raw, "publishers"))
                 registry.Publishers.Add(new Publisher
                 {
@@ -60,7 +64,39 @@ namespace AddinFinder
                 addin.Publisher = publisherId;
                 result.Add(addin);
             }
+            foreach (var addin in SetupEntries(raw, publisherId)) result.Add(addin);
             return result;
+        }
+
+        /// <summary>
+        /// Addins distributed as a setup installer, read from their own "setupAddins" key.
+        ///
+        /// A separate key, and not a flag on an ordinary entry, because of what builds before 0.8.1
+        /// would do with one. Such an entry carries no download URLs -- the asset is renamed every
+        /// release, so there is nothing to pin -- and an older client walks straight through that:
+        /// the URL-ownership check passes (nothing to check), Download returns immediately on an
+        /// empty URL, and MoveIntoPlace still creates the destination before copying nothing into
+        /// it. The user would be left with an EMPTY folder under accessory\addins and a phantom
+        /// install recorded against it. An empty folder in the scanned root is exactly the shape
+        /// that has already stopped a Clarion starting.
+        ///
+        /// Older builds read only "addins", so putting these anywhere else makes them invisible
+        /// rather than dangerous. Same reasoning as installed.v2.json and settings.v2.json: a new
+        /// shape does not go where an old reader will find it and misunderstand it.
+        /// </summary>
+        private static IEnumerable<RegistryAddin> SetupEntries(Dictionary<string, object> raw,
+                                                               string publisherId)
+        {
+            foreach (var a in Entries(raw, "setupAddins"))
+            {
+                var addin = MapAddin(a);
+                addin.Publisher = publisherId;
+
+                // Without a repository there is nothing to resolve a release from, so the entry
+                // could only ever render as an addin that cannot be obtained.
+                if (addin.GithubRepo.Length == 0) continue;
+                yield return addin;
+            }
         }
 
         /// <summary>

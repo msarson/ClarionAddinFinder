@@ -245,6 +245,17 @@ namespace AddinFinder
                 throw new InvalidOperationException(
                     addin.Name + " installs itself; download the setup and let the user run it.");
 
+            // An entry with nothing to download would otherwise proceed quietly to its conclusion:
+            // Download returns immediately on an empty URL, and MoveIntoPlace still creates the
+            // destination before copying nothing into it, leaving an EMPTY folder under the root
+            // Clarion scans at start-up. That is the shape that has already stopped a Clarion
+            // starting, so refuse rather than produce it.
+            if (string.IsNullOrEmpty(addin.DownloadZipUrl)
+                && string.IsNullOrEmpty(addin.AddinFileUrl)
+                && addin.DownloadUrls.Count == 0)
+                throw new InvalidOperationException(
+                    addin.Name + ": the registry entry has nothing to download.");
+
             staged = false;
             string folder = Path.Combine(_addinsRoot, addin.Id);
 

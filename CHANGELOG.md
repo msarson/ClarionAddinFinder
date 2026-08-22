@@ -19,6 +19,13 @@ All notable changes to Addin Finder are documented here.
   still there. The addin still appears as installed afterwards, because the disk reconciliation
   added in 0.7.1 finds it like anything else.
 
+  Setup addins live under their own **`setupAddins`** key rather than alongside ordinary entries,
+  so builds before 0.8.1 never see them. That matters: such an entry has no download URLs, and an
+  older client would list it, download nothing, create an *empty* folder under `accessory\addins`
+  anyway, and record a phantom install — and an empty folder in the folder Clarion scans at start-up
+  is the shape that has already stopped an IDE starting. Installing an entry with nothing to
+  download is now refused outright as well, in case one is ever filed under the wrong key.
+
   The registry records a repository rather than a download URL, because publishers rename the asset
   every release — `ClarionAssistant-5.8-Setup.exe`, then `-5.8.1-` — so a pinned link would 404
   almost immediately. Resolving through the releases API also means **nobody maintains a version
