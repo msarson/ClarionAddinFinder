@@ -2,7 +2,28 @@
 
 All notable changes to Addin Finder are documented here.
 
-## [0.8.0] - unreleased
+## [0.8.1] - unreleased
+
+### Added
+- **Addin Finder now warns when two addins under the same Clarion declare the same
+  `<Identity name>`.** Clarion loads every subfolder of `accessory\addins` at start-up and refuses
+  to start *at all* when that happens — the user gets "Identity name used by multiple addins" and
+  no IDE.
+
+  Installing through Addin Finder has been unable to cause this since 0.8.0, which refuses such an
+  install. This covers every other route, and they are the common ones: another product's
+  installer, a folder copied from a different Clarion, a hand-unzipped copy. The case that has
+  actually cost a user their IDE is Clarion Assistant's installer writing the Markdown Editor to
+  `accessory\addins\MarkdownEditor` while Addin Finder installs the same addin to
+  `accessory\addins\ClarionMarkdownEditor` — two installers, each correct alone.
+
+  It reports and never acts: removing one side would mean choosing on the user's behalf between two
+  things Addin Finder may not have put there. Both full paths are given, so the choice can be made
+  and acted on immediately. Detection reads each manifest rather than trusting folder names, since
+  the two differ in practice — FlattenCode installs as `FlattenCode` and declares
+  `<Identity name="FlattenCode.Addin"/>`.
+
+## [0.8.0] - 2026-08-22
 
 ### Added
 - **Federated publisher registries.** The root registry now records **publishers** rather than
