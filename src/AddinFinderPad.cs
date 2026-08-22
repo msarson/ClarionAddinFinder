@@ -155,6 +155,7 @@ namespace AddinFinder
 
                         PopulateList();
                         _statusLabel.Text        = SummariseRefresh(registry!);
+                        WarnAboutIdentityClashes();
                         _refreshButton.Enabled   = true;
                         _copyErrorButton.Visible = false;
                     }
@@ -175,6 +176,24 @@ namespace AddinFinder
             // implying it came from somewhere we can vouch for.
             if (known == null || known.Publisher.Length == 0) return " (publisher unknown)";
             return $" (from {known.Publisher})";
+        }
+
+        /// <summary>
+        /// Warns if anything under accessory\addins would stop Clarion starting.
+        ///
+        /// Not a modal, and not tied to installing. By the time this is true the affected Clarion
+        /// will not start, so the IDE showing the message is a different one -- a second Clarion on
+        /// the same machine, or the next start after something else wrote the duplicate. A dialog
+        /// would be interrupting the wrong session about a machine-level problem.
+        /// </summary>
+        private void WarnAboutIdentityClashes()
+        {
+            var clashes = IdentityAudit.Scan(ClarionRootPath);
+            if (clashes.Count == 0) return;
+
+            _lastError               = IdentityAudit.FullWarning(clashes);
+            _statusLabel.Text        = IdentityAudit.ShortWarning(clashes);
+            _copyErrorButton.Visible = true;
         }
 
         private void PopulateList()
