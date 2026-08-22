@@ -49,10 +49,16 @@ namespace AddinFinder
         /// <summary>
         /// How long a resolved release is reused before asking GitHub again.
         ///
-        /// Unauthenticated requests are limited to 60 per hour PER IP, shared with everything else
-        /// on that network -- an office behind one NAT can exhaust it without any single person
-        /// doing anything unusual. The pad refreshes whenever it is opened, so asking every time
-        /// would spend that budget on a number that changes a few times a month.
+        /// Mostly politeness and offline behaviour: the pad refreshes whenever it is opened, and a
+        /// release tag changes a few times a month, so asking every time would be a request per
+        /// pad-open for an answer that is almost always the same. Caching also means a machine with
+        /// no network still shows the addin and its last known version.
+        ///
+        /// Not primarily about rate limits. Unauthenticated requests are capped at 60 per hour per
+        /// IP, which would only bite if many developers shared one address and several setup addins
+        /// were listed -- and in this community that is not the shape of things. It is worth knowing
+        /// the cap exists, not worth engineering around: if it ever did become real, conditional
+        /// requests are the answer, since a 304 does not count against the limit at all.
         /// </summary>
         public const int CacheHours = 6;
 

@@ -23,9 +23,9 @@ All notable changes to Addin Finder are documented here.
   every release — `ClarionAssistant-5.8-Setup.exe`, then `-5.8.1-` — so a pinned link would 404
   almost immediately. Resolving through the releases API also means **nobody maintains a version
   for these**: Clarion Assistant shipped eight releases in seven weeks, and any hand-kept entry
-  would have been stale within days of each one. Answers are cached for six hours, because
-  unauthenticated GitHub requests are limited to 60 an hour *per IP* — shared across everyone behind
-  one office connection.
+  would have been stale within days of each one. Answers are cached for six hours, so the pad does
+  not ask GitHub on every open for a tag that changes a few times a month — and so a machine with no
+  network still shows the addin and its last known version.
 - **Addin Finder now warns when two addins under the same Clarion declare the same
   `<Identity name>`.** Clarion loads every subfolder of `accessory\addins` at start-up and refuses
   to start *at all* when that happens — the user gets "Identity name used by multiple addins" and
