@@ -31,35 +31,81 @@ namespace AddinFinder
             return registry;
         }
 
-        public static List<InstalledAddin> ParseInstalled(string json)
+        /// <summary>
+        /// Reads installed.json in either format.
+        ///
+        /// v1 (no "version" key) recorded a flat "addins" list with no Clarion root. Those entries
+        /// land in LegacyUnclaimed rather than Installed: this process only ever sees one Clarion,
+        /// so it cannot know which root a v1 entry belonged to and must not guess. Each root claims
+        /// what it can prove on disk -- see InstalledAddinStore.ClaimLegacy.
+        /// </summary>
+        public static InstalledStore ParseStore(string json)
         {
-            var result = new List<InstalledAddin>();
-            if (string.IsNullOrWhiteSpace(json)) return result;
+            var store = new InstalledStore();
+            if (string.IsNullOrWhiteSpace(json)) return store;
+
             var raw = _js.Deserialize<Dictionary<string, object>>(json);
-            if (raw.TryGetValue("addins", out var obj) &&
-                obj is System.Collections.ArrayList list)
+            store.Version = raw.TryGetValue("version", out var ver) ? Convert.ToInt32(ver) : 1;
+
+            if (store.Version >= 2)
             {
-                foreach (Dictionary<string, object> a in list)
-                    result.Add(new InstalledAddin
+                foreach (var a in Entries(raw, "installed"))
+                    store.Installed.Add(new InstalledAddin
+                    {
+                        Id          = S(a, "id"),
+                        Root        = S(a, "root"),
+                        Version     = S(a, "version"),
+                        InstalledAt = S(a, "installedAt"),
+                        Staged      = Bool(a, "staged"),
+                    });
+
+                foreach (var a in Entries(raw, "legacyUnclaimed"))
+                    store.LegacyUnclaimed.Add(new InstalledAddin
                     {
                         Id          = S(a, "id"),
                         Version     = S(a, "version"),
                         InstalledAt = S(a, "installedAt"),
                     });
             }
-            return result;
+            else
+            {
+                foreach (var a in Entries(raw, "addins"))
+                    store.LegacyUnclaimed.Add(new InstalledAddin
+                    {
+                        Id          = S(a, "id"),
+                        Version     = S(a, "version"),
+                        InstalledAt = S(a, "installedAt"),
+                    });
+            }
+            return store;
         }
 
-        public static string SerialiseInstalled(List<InstalledAddin> addins)
+        public static string SerialiseStore(InstalledStore store)
             => _js.Serialize(new
             {
-                addins = addins.Select(a => new
+                version = 2,
+                installed = store.Installed.Select(a => new
+                {
+                    id          = a.Id,
+                    root        = a.Root,
+                    version     = a.Version,
+                    installedAt = a.InstalledAt,
+                    staged      = a.Staged,
+                }).ToList(),
+                legacyUnclaimed = store.LegacyUnclaimed.Select(a => new
                 {
                     id          = a.Id,
                     version     = a.Version,
                     installedAt = a.InstalledAt,
                 }).ToList()
             });
+
+        private static IEnumerable<Dictionary<string, object>> Entries(Dictionary<string, object> raw, string key)
+        {
+            if (raw.TryGetValue(key, out var obj) && obj is System.Collections.ArrayList list)
+                foreach (Dictionary<string, object> a in list)
+                    yield return a;
+        }
 
         private static RegistryAddin MapAddin(Dictionary<string, object> a) => new RegistryAddin
         {

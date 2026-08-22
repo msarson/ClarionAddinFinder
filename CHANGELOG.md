@@ -2,6 +2,37 @@
 
 All notable changes to Addin Finder are documented here.
 
+## [0.7.0] - unreleased
+
+### Fixed
+- **Installed addins are now tracked per Clarion installation** ([#6](https://github.com/msarson/ClarionAddinFinder/issues/6)).
+  `installed.json` recorded addins by id alone, so on a machine with Clarion 10, 11,
+  11.1 and 12 — four separate addin folders — installing into one reported the addin
+  as installed in all of them, and uninstalling from one marked it gone everywhere
+  while the files remained. Entries are now keyed by Clarion root.
+- **The store is reconciled against disk on every load.** It recorded what we *believed*
+  we had done rather than what is actually installed, and never checked. An entry now
+  survives only if the addin folder really holds a manifest, and the version is read
+  from that manifest's `<Identity version="…"/>` rather than trusted from JSON. A store
+  that has drifted for any reason now corrects itself at the next start.
+- **A failed install no longer leaves an empty addin folder behind.** The folder was
+  created before anything was downloaded, and only `IOException` was caught — but a
+  failed download throws `WebException`, which does not derive from it. A 404 or dropped
+  connection left an empty folder that Clarion reports at startup as a broken addin.
+  Downloads now land in a scratch folder outside the scanned root and are moved into
+  place only once complete.
+- **A staged install no longer claims a version that is not on disk yet.** When files are
+  locked the payload goes to the pending folder, but the store recorded it as installed
+  immediately. Such entries are now marked staged and confirmed once applied.
+
+### Changed
+- `installed.json` moves to **format version 2**. Migration is automatic and happens on
+  first load of the new version, so it cannot run before the new code is live. A v1 file
+  is copied to `installed.json.v1.bak` first, and its entries are attributed to a Clarion
+  root only where the addin is actually present on disk — each Clarion claims its own the
+  first time it runs. Nothing is discarded on the assumption that it is gone.
+- AddinFinder's own manifest now carries a version in its `<Identity>` element.
+
 ## [0.6.0] - 2026-07-27
 
 ### Added
