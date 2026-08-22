@@ -35,8 +35,11 @@ All notable changes to Addin Finder are documented here.
   it, so the part that recurs is the part that differs every time: a name, an account, a link to
   read before trusting it.
 
-- **A one-time explanation on upgrading.** The first time the pad is opened on this version,
-  anyone arriving from an earlier one is told what changed and why: publishing used to require
+- **A one-time explanation on upgrading**, shown inside the pad in place of its usual contents
+  rather than as a dialog. Clarion restores whichever pads were open last time, so a docked pad is
+  created during start-up and a modal there interrupts the IDE coming up before the user has asked
+  for anything. The list loads underneath while the notice is up, so dismissing it reveals a pad
+  that is already populated. Anyone arriving from an earlier version is told what changed and why: publishing used to require
   every addin, and every new version of one, to be added to a single central list, which put one
   person in the path of everybody else's releases and fell hardest on publishers already doing the
   work. Someone installing Addin Finder for the first time is deliberately not shown it -- they

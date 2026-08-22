@@ -11,9 +11,9 @@ function Check([string]$name, [bool]$ok, [string]$detail) {
     else     { Write-Host "  FAIL  $name -- $detail" -ForegroundColor Red; $script:fail++ }
 }
 
-$t = $asm.GetType('AddinFinder.WhatsChangedDialog')
-$isBefore = $t.GetMethod('IsBefore', [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::NonPublic)
-$current  = $t.GetMethod('CurrentVersion', [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::NonPublic)
+$t = $asm.GetType('AddinFinder.WhatsChangedNotice')
+$isBefore = $t.GetMethod('IsBefore', [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::NonPublic -bor [Reflection.BindingFlags]::Public)
+$current  = $t.GetMethod('CurrentVersion', [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::NonPublic -bor [Reflection.BindingFlags]::Public)
 
 Write-Host "`n1. Version comparison"
 Check '0.7.1 is before 0.8.0'  ([bool]$isBefore.Invoke($null, @('0.7.1', '0.8.0'))) 'wrong'
