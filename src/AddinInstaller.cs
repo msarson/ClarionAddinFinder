@@ -5,6 +5,26 @@ using System.Net;
 
 namespace AddinFinder
 {
+    /// <summary>
+    /// Raised when installing would put a second addin declaring the same Identity under one
+    /// Clarion. Carries what the user needs told: which addin, which Identity, and where the copy
+    /// already holding it lives.
+    /// </summary>
+    public class IdentityConflictException : Exception
+    {
+        public string AddinId      { get; }
+        public string IdentityName { get; }
+        public string ExistingPath { get; }
+
+        public IdentityConflictException(string addinId, string identityName, string existingPath)
+            : base($"{addinId} declares the identity '{identityName}', which is already installed at {existingPath}")
+        {
+            AddinId      = addinId;
+            IdentityName = identityName;
+            ExistingPath = existingPath;
+        }
+    }
+
     /// <summary>Downloads and installs addin files into the Clarion addins folder.</summary>
     public class AddinInstaller
     {
@@ -149,6 +169,22 @@ namespace AddinFinder
             return null;
         }
 
+        /// <summary>The Identity declared by the payload in a folder, or "" if there is no manifest.</summary>
+        private static string ReadIdentityNameFrom(string folder)
+        {
+            try
+            {
+                foreach (string manifest in Directory.GetFiles(folder, "*.addin",
+                                                               SearchOption.TopDirectoryOnly))
+                {
+                    string name = ReadIdentityName(manifest);
+                    if (name.Length > 0) return name;
+                }
+            }
+            catch { }
+            return "";
+        }
+
         /// <summary>The &lt;Identity name&gt; of a manifest, or "" if it cannot be read.</summary>
         public static string ReadIdentityName(string manifestPath)
         {
@@ -191,6 +227,15 @@ namespace AddinFinder
                 SafeDeleteDirectory(scratch);
                 Directory.CreateDirectory(scratch);
                 WriteFiles(addin, scratch);
+
+                // Checked HERE, against the manifest just downloaded, rather than earlier from the
+                // registry entry. The addin id is NOT the Identity: FlattenCode is published with
+                // <Identity name="FlattenCode.Addin"/>, so assuming they match would look for the
+                // wrong name and miss a real clash. Only the file itself knows.
+                string identity = ReadIdentityNameFrom(scratch);
+                string? clash   = FindConflictingIdentity(addin.Id, identity);
+                if (clash != null)
+                    throw new IdentityConflictException(addin.Id, identity, clash);
 
                 try
                 {

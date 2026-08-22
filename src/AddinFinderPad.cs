@@ -166,9 +166,8 @@ namespace AddinFinder
         // ── List population ───────────────────────────────────────────────
 
         /// <summary>Names the publisher of a conflicting copy, when we know it.</summary>
-        private string DescribeClashOwner(string addinId, string clashFolder)
+        private string DescribeClashOwner(string folderId)
         {
-            string folderId = Path.GetFileName(clashFolder);
             var known = _installedAddins.FirstOrDefault(
                 i => string.Equals(i.Id, folderId, StringComparison.OrdinalIgnoreCase));
 
@@ -410,42 +409,13 @@ namespace AddinFinder
             if (!InstallDisclaimerDialog.EnsureAccepted(
                     _contentPanel, _settings, addins, _lastResult.Publishers)) return;
 
-            // Clarion refuses to start if two addin folders declare the same Identity, so an install
-            // that would create one is refused here rather than breaking the IDE. Only a fresh
-            // install can introduce a clash -- updating an addin in place cannot.
-            if (!isUpdate)
-            {
-                var blocked = new List<string>();
-                foreach (var addin in addins.ToList())
-                {
-                    string? clash = _installer.FindConflictingIdentity(addin.Id, addin.Id);
-                    if (clash == null) continue;
-
-                    addins.Remove(addin);
-                    blocked.Add($"{addin.Name} — already installed as \"{Path.GetFileName(clash)}\""
-                                + DescribeClashOwner(addin.Id, clash));
-                }
-
-                if (blocked.Count > 0)
-                {
-                    MessageBox.Show(_contentPanel,
-                        "These addins were not installed, because Clarion would refuse to "
-                        + "start with two addins declaring the same identity:\r\n\r\n  "
-                        + string.Join("\r\n  ", blocked)
-                        + "\r\n\r\nRemove the existing copy first if you want to switch.",
-                        "Already installed under another name",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-
-                    if (addins.Count == 0) return;
-                }
-            }
-
             SetButtons(false);
             _statusLabel.Text = $"{(isUpdate ? "Updating" : "Installing")} {addins.Count} addin(s)…";
 
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 var failed  = new List<string>();
+                var blocked = new List<string>();
                 bool anyStagedUpdate = false;
                 foreach (var addin in addins)
                 {
@@ -454,6 +424,14 @@ namespace AddinFinder
                         bool staged;
                         _installer.Install(addin, out staged);
                         if (staged) anyStagedUpdate = true;
+                    }
+                    catch (IdentityConflictException conflict)
+                    {
+                        // Refused rather than failed: installing would leave Clarion unable to
+                        // start at all, so not installing is the correct outcome, not an error.
+                        blocked.Add($"{addin.Name} — identity \"{conflict.IdentityName}\" is already "
+                                    + $"installed in {Path.GetFileName(conflict.ExistingPath)}"
+                                    + DescribeClashOwner(Path.GetFileName(conflict.ExistingPath)));
                     }
                     catch (Exception ex)
                     {
@@ -466,6 +444,19 @@ namespace AddinFinder
                 {
                     _installedAddins = _installedStore.Load(ClarionRootPath);
                     PopulateList();
+
+                    // Reported before anything else: a refusal is the outcome the user most
+                    // needs to understand, and it is not an error -- installing would have
+                    // left Clarion unable to start.
+                    if (blocked.Count > 0)
+                        MessageBox.Show(_contentPanel,
+                            "Not installed, because Clarion refuses to start when two addins "
+                            + "declare the same identity:\r\n\r\n  "
+                            + string.Join("\r\n  ", blocked)
+                            + "\r\n\r\nRemove the existing copy first if you want to switch.",
+                            "Already installed under another identity",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
                     if (failed.Count > 0)
                     {
                         _lastError = string.Join(Environment.NewLine, failed);
@@ -479,9 +470,17 @@ namespace AddinFinder
                     }
                     else
                     {
-                        string[] names = addins.Select(a => a.Name).ToArray();
-                        _statusLabel.Text = $"{addins.Count} addin(s) installed. Please restart Clarion to activate.";
-                        ShowRestartReminder(names, isUpdate ? RestartReason.Updated : RestartReason.Installed);
+                        int installed = addins.Count - blocked.Count;
+                        if (installed <= 0)
+                        {
+                            _statusLabel.Text = "Nothing installed.";
+                        }
+                        else
+                        {
+                            string[] names = addins.Select(a => a.Name).ToArray();
+                            _statusLabel.Text = $"{installed} addin(s) installed. Please restart Clarion to activate.";
+                            ShowRestartReminder(names, isUpdate ? RestartReason.Updated : RestartReason.Installed);
+                        }
                     }
                     OnAddinSelected(null, EventArgs.Empty);
                     SetButtons(true);

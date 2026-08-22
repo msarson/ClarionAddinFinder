@@ -59,6 +59,19 @@ All notable changes to Addin Finder are documented here.
   another installer placed is not ours to list. Doing so claimed a relationship that never existed
   and offered actions we have no business offering.
 
+- **A stale `<Identity version>` no longer causes a permanent phantom "update available".** The
+  manifest is the publisher's self-report and it goes stale -- FlattenCode has shipped 1.0.1
+  through 1.0.3 all declaring `version="1.0"`. Reconciliation took that as truth, overwrote the
+  version actually installed with a lower one, and the comparison against the registry then
+  offered the update again on every load. The manifest may now only move a recorded version
+  *forward*: higher means something updated the addin behind our back and is worth knowing; lower
+  means the attribute was not maintained, and what we installed remains the better answer.
+- **The addin id is no longer assumed to be its `<Identity name>`.** FlattenCode is published as
+  `FlattenCode` with `<Identity name="FlattenCode.Addin"/>`, so the collision check was looking for
+  a name no manifest declares and would have missed a real clash. The check now reads the identity
+  out of the payload it has just downloaded, and runs at install time rather than from the registry
+  entry -- only the file itself knows what it declares.
+
 ### Changed
 - A failed publisher fetch no longer empties the pad. Each publisher is fetched independently and
   in parallel; a failure falls back to that publisher's cached list, shown as such.
