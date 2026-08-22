@@ -394,7 +394,8 @@ namespace AddinFinder
             if (addins.Count == 0 || _installer == null) return;
 
             // Informed consent before the first install of anything. Declining cancels.
-            if (!InstallDisclaimerDialog.EnsureAccepted(_contentPanel, _settings)) return;
+            if (!InstallDisclaimerDialog.EnsureAccepted(
+                    _contentPanel, _settings, addins, _lastResult.Publishers)) return;
 
             // Clarion refuses to start if two addin folders declare the same Identity, so an install
             // that would create one is refused here rather than breaking the IDE. Only a fresh

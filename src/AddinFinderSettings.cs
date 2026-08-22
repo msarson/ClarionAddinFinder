@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace AddinFinder
@@ -29,6 +31,26 @@ namespace AddinFinder
         public const int CurrentTermsVersion = 1;
 
         public bool HasAcceptedTerms => AcceptedTermsVersion >= CurrentTermsVersion;
+
+        /// <summary>
+        /// Publisher ids the user has knowingly installed from before. "" is a real member of this
+        /// set: it stands for the unidentified source behind legacy and hand-placed addins.
+        ///
+        /// Tracked per publisher because that is the shape of the actual decision -- trusting one
+        /// publisher says nothing about the next, and a registry that grows must not quietly opt a
+        /// user into publishers added long after they accepted anything.
+        /// </summary>
+        public List<string> AcknowledgedPublishers { get; set; } = new List<string>();
+
+        public bool HasAcknowledged(string publisherId)
+            => AcknowledgedPublishers.Any(p => string.Equals(p, publisherId ?? "",
+                                                             StringComparison.OrdinalIgnoreCase));
+
+        public void Acknowledge(string publisherId)
+        {
+            if (HasAcknowledged(publisherId)) return;
+            AcknowledgedPublishers.Add(publisherId ?? "");
+        }
 
         public static AddinFinderSettings Load()
         {

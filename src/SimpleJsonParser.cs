@@ -71,6 +71,7 @@ namespace AddinFinder
             var raw = _js.Deserialize<Dictionary<string, object>>(json);
             s.SuppressRestartReminder = Bool(raw, "suppressRestartReminder");
             s.AcceptedTermsVersion    = Int(raw, "acceptedTermsVersion");
+            s.AcknowledgedPublishers  = StrList(raw, "acknowledgedPublishers");
             return s;
         }
 
@@ -79,6 +80,7 @@ namespace AddinFinder
             {
                 suppressRestartReminder = s.SuppressRestartReminder,
                 acceptedTermsVersion    = s.AcceptedTermsVersion,
+                acknowledgedPublishers  = s.AcknowledgedPublishers,
             });
 
         public static List<PublisherHealthEntry> ParsePublisherHealth(string json)

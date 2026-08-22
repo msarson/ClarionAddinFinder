@@ -22,10 +22,18 @@ All notable changes to Addin Finder are documented here.
 - **The list is grouped by publisher**, with each publisher's state in the group header. Entries
   from the legacy list, adopted from disk, or placed by another installer group under **Unknown
   publisher** -- never under a publisher we cannot actually vouch for.
-- **A one-time disclaimer before the first install**, recording a versioned acknowledgement so it
-  can return if the wording materially changes. It says the true things: addins run in-process in
-  the IDE with your privileges, nobody reviews their code, and publishers are approved by identity
-  rather than for quality.
+- **Consent before installing, in two parts.** The general terms -- what an addin can do, and that
+  nobody reviews them -- describe the system and are shown once, with a versioned acknowledgement
+  so they can return if the wording materially changes. A short publisher section names who is
+  about to run code on the machine, and appears the first time you install from *each* publisher:
+  trusting one publisher says nothing about the next, and a registry that grows must not quietly
+  opt a user into publishers added long afterwards. An addin with no identified publisher -- from
+  the legacy list, or found already installed -- says so plainly rather than implying provenance
+  it does not have.
+
+  The split is deliberate. Repeating the same warning is how people are taught to click through
+  it, so the part that recurs is the part that differs every time: a name, an account, a link to
+  read before trusting it.
 
 ### Changed
 - A failed publisher fetch no longer empties the pad. Each publisher is fetched independently and
