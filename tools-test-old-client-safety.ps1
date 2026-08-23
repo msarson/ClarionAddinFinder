@@ -1,4 +1,4 @@
-# A setup addin must be INVISIBLE to builds before 0.8.1.
+# A setup addin must be INVISIBLE to builds before 0.9.0.
 #
 # Such an entry carries no download URLs, because the release asset is renamed every version and
 # there is nothing to pin. An older client walks straight through that: the URL-ownership check
@@ -41,7 +41,7 @@ $json = @'
 '@
 
 Write-Host "`n1. What an OLD client sees (it reads only the addins key)"
-# Exactly what a pre-0.8.1 build does: deserialise, look at "addins", ignore everything else.
+# Exactly what a pre-0.9.0 build does: deserialise, look at "addins", ignore everything else.
 Add-Type -AssemblyName System.Web.Extensions
 $js  = New-Object System.Web.Script.Serialization.JavaScriptSerializer
 $raw = $js.Deserialize($json, [System.Collections.Generic.Dictionary[string,object]])

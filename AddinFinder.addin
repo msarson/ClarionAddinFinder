@@ -5,7 +5,7 @@
        addInManagerHidden="preinstalled">
 
   <Manifest>
-    <Identity name="AddinFinder" version="0.8.1"/>
+    <Identity name="AddinFinder" version="0.9.0"/>
   </Manifest>
 
   <Runtime>

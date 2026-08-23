@@ -2,7 +2,7 @@
 
 All notable changes to Addin Finder are documented here.
 
-## [0.8.1] - unreleased
+## [0.9.0] - 2026-08-23
 
 ### Added
 - **Addins distributed as a Windows setup installer.** Some addins ship as a setup `.exe` rather
@@ -20,7 +20,7 @@ All notable changes to Addin Finder are documented here.
   added in 0.7.1 finds it like anything else.
 
   Setup addins live under their own **`setupAddins`** key rather than alongside ordinary entries,
-  so builds before 0.8.1 never see them. That matters: such an entry has no download URLs, and an
+  so builds before 0.9.0 never see them. That matters: such an entry has no download URLs, and an
   older client would list it, download nothing, create an *empty* folder under `accessory\addins`
   anyway, and record a phantom install — and an empty folder in the folder Clarion scans at start-up
   is the shape that has already stopped an IDE starting. Installing an entry with nothing to
@@ -102,7 +102,7 @@ All notable changes to Addin Finder are documented here.
   makes an addin self-installing. Any fallback went through it: a publisher who could not be
   reached, or a machine with no network at all. The addin came back looking like one Addin Finder
   could place, so the button read **Install** rather than Download, on an entry that by design has
-  no URLs to install from. The refusal added earlier in 0.8.1 stopped that going anywhere harmful,
+  no URLs to install from. The refusal added earlier in 0.9.0 stopped that going anywhere harmful,
   but the offer should never have been made — and with the repository gone, the last known version
   could not be looked up either, which is the one thing the cache was there to keep showing.
 - **An addin that has just been withdrawn is described, not reduced to a folder name.** The cache

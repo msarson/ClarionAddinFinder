@@ -29,7 +29,7 @@ namespace AddinFinder
                 registry.Addins.Add(MapAddin(a));
 
             // Setup addins in the root registry, for a publisher who has not federated yet. Same
-            // separate key, for the same reason: a build before 0.8.1 must not see them.
+            // separate key, for the same reason: a build before 0.9.0 must not see them.
             foreach (var a in SetupEntries(raw, "")) registry.Addins.Add(a);
 
             foreach (var p in Entries(raw, "publishers"))
@@ -71,7 +71,7 @@ namespace AddinFinder
         /// <summary>
         /// Addins distributed as a setup installer, read from their own "setupAddins" key.
         ///
-        /// A separate key, and not a flag on an ordinary entry, because of what builds before 0.8.1
+        /// A separate key, and not a flag on an ordinary entry, because of what builds before 0.9.0
         /// would do with one. Such an entry carries no download URLs -- the asset is renamed every
         /// release, so there is nothing to pin -- and an older client walks straight through that:
         /// the URL-ownership check passes (nothing to check), Download returns immediately on an
