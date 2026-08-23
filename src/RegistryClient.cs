@@ -212,10 +212,16 @@ namespace AddinFinder
                 // A publisher may only serve binaries from their own account. Enforced here rather
                 // than by anyone maintaining a list. A violation drops the entry, not the publisher:
                 // one bad URL should not take out someone's other addins.
+                //
+                // OwnsRepo covers the addins that install themselves. Those carry no URLs, so the
+                // three checks below all pass on empty strings while the installer actually fetched
+                // could come from any account at all -- the rule with the widest gap left open under
+                // it, since what the user ends up running is an elevated setup.
                 var kept = addins.Where(a =>
                     p.OwnsDownloadUrl(a.DownloadZipUrl) &&
                     p.OwnsDownloadUrl(a.AddinFileUrl) &&
-                    a.DownloadUrls.All(p.OwnsDownloadUrl)).ToList();
+                    a.DownloadUrls.All(p.OwnsDownloadUrl) &&
+                    p.OwnsRepo(a.GithubRepo)).ToList();
 
                 return new PublisherFetch { Outcome = FetchOutcome.Ok, Addins = kept };
             }

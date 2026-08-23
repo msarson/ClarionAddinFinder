@@ -52,6 +52,18 @@ All notable changes to Addin Finder are documented here.
   `<Identity name="FlattenCode.Addin"/>`.
 
 ### Fixed
+- **A publisher may only point at a setup installer in their own GitHub account.** The rule that a
+  publisher can serve binaries only from their own account was checked on an entry's download URLs
+  — and a setup entry has none, because the release asset is resolved from a repository instead. All
+  three URL checks passed on empty strings, and the repository nobody was checking was the thing
+  actually fetched. That is the worst place to have left the gap open: what arrives is an `.exe`
+  that the user then runs with elevation. The repository's owner must now match the publisher id,
+  and a violation drops the entry rather than the publisher, exactly as a bad URL does.
+
+  Checked once more at the moment of download, because repositories move: GitHub follows a transfer
+  or a rename transparently, so a repository that belonged to the publisher yesterday can resolve to
+  assets under another account today without a character of the registry changing. The asset URL
+  comes back from GitHub rather than from the entry, so that is the one worth checking last.
 - **A setup addin no longer turns back into an ordinary one after a trip through the cache.** The
   registry cache copied every field of an entry except the repository — and the repository is what
   makes an addin self-installing. Any fallback went through it: a publisher who could not be

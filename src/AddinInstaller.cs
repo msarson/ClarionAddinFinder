@@ -226,6 +226,20 @@ namespace AddinFinder
                 throw new InvalidOperationException(
                     addin.Name + ": no installer could be resolved from " + addin.GithubRepo);
 
+            // The repository was checked against the publisher when the list was read, but a
+            // repository can move: GitHub follows a transfer or rename transparently, so a name that
+            // belonged to the publisher yesterday can resolve to assets under someone else's account
+            // today, without a single character of the registry changing. The asset URL comes back
+            // from GitHub rather than from the entry, so checking it here is checking the thing that
+            // will actually be fetched -- and this one ends up being run with elevation.
+            if (addin.Publisher.Length > 0 &&
+                !addin.Release.AssetUrl.StartsWith("https://github.com/" + addin.Publisher + "/",
+                                                   StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    addin.Name + ": the installer resolved to " + addin.Release.AssetUrl +
+                    ", which is not under github.com/" + addin.Publisher +
+                    ". Refusing to download it.");
+
             // Downloads rather than a temp folder: the user has to find this and run it themselves,
             // and a file Windows may clean up underneath them is a poor thing to point at.
             string folder = Path.Combine(

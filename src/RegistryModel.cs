@@ -125,6 +125,26 @@ namespace AddinFinder
             string prefix = "https://github.com/" + Id + "/";
             return url.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
         }
+
+        /// <summary>
+        /// The same rule for an addin that installs itself, where the registry records "owner/repo"
+        /// instead of a URL.
+        ///
+        /// It needs saying separately because a setup entry carries no download URLs at all, so it
+        /// sails through OwnsDownloadUrl -- three empty strings, nothing to check -- while the thing
+        /// actually fetched comes from a repository nobody was checking. That is the one place the
+        /// rule matters most: what arrives is an installer, which the user then runs with elevation.
+        ///
+        /// Strict, and for the same reason as the URL form: approving a publisher must not become
+        /// permission to point users at someone else's account later.
+        /// </summary>
+        public bool OwnsRepo(string ownerRepo)
+        {
+            if (string.IsNullOrEmpty(ownerRepo)) return true;   // nothing to resolve, nothing to check
+            int slash = ownerRepo.IndexOf('/');
+            if (slash <= 0) return false;                       // not "owner/repo" -- do not guess
+            return string.Equals(ownerRepo.Substring(0, slash), Id, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     public class AddinRegistry

@@ -56,6 +56,16 @@ Check 'other account refused' (-not $pub.OwnsDownloadUrl('https://github.com/som
 Check 'non-github refused'    (-not $pub.OwnsDownloadUrl('https://evil.example.com/x.dll')) 'accepted arbitrary host'
 Check 'empty url tolerated'   ($pub.OwnsDownloadUrl('')) 'rejected empty'
 
+# The same rule for an addin that installs itself, which records "owner/repo" and no URLs at all --
+# so all three URL checks above pass on empty strings while the installer fetched could have come
+# from anywhere. Strict: approving a publisher is not permission to point users elsewhere later.
+Check 'own repository accepted'   ($pub.OwnsRepo('msarson/TestSetupAddin')) 'rejected own repo'
+Check 'other account refused'     (-not $pub.OwnsRepo('someoneelse/evil')) 'accepted a foreign repository'
+Check 'a bare name is refused'    (-not $pub.OwnsRepo('TestSetupAddin')) 'guessed an owner'
+Check 'a leading slash is refused' (-not $pub.OwnsRepo('/msarson/x')) 'accepted an empty owner'
+Check 'case is not significant'   ($pub.OwnsRepo('MSarson/x')) 'rejected on case alone'
+Check 'empty repo tolerated'      ($pub.OwnsRepo('')) 'rejected empty'
+
 Write-Host "`n3. A real publisher file parses (msarson/clarion-addins)"
 $parser = $asm.GetType('AddinFinder.SimpleJsonParser')
 $m = $parser.GetMethod('ParsePublisherAddins', [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::Public)

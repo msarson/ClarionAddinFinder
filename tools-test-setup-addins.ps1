@@ -129,6 +129,42 @@ Check 'with its repository'    ($back[0].GithubRepo -eq 'ClarionLive/ClarionAssi
 Check 'so the button still says Download' ($back[0].IsSetup) 'came back as one we could place'
 Check 'and it is marked stale rather than passed off as current' ($back[0].FromCache) 'not marked as cached'
 
+Write-Host "`n11. The installer must come from the publisher's own account"
+# The repository is checked against the publisher when the list is read (tools-test-federation), but
+# repositories move: GitHub follows a transfer or a rename transparently, so a name that belonged to
+# the publisher yesterday can resolve to assets under another account today with nothing in the
+# registry having changed. What arrives is an .exe the user then runs with elevation, so the URL
+# actually about to be fetched is checked again at the last moment.
+$installer = $asm.GetType('AddinFinder.AddinInstaller')
+$downloadSetup = $installer.GetMethod('DownloadSetup', $static)
+
+function New-SetupAddin([string]$publisher, [string]$assetUrl) {
+    $a = $asm.CreateInstance('AddinFinder.RegistryAddin')
+    $a.Id = 'Moved'; $a.Name = 'Moved Addin'
+    $a.Publisher = $publisher; $a.GithubRepo = "$publisher/Moved"
+    $r = $asm.CreateInstance('AddinFinder.GithubRelease')
+    $r.Tag = 'v1.0.0'; $r.AssetName = 'Moved-1.0.0-Setup.exe'; $r.AssetUrl = $assetUrl
+    $a.Release = $r
+    return $a
+}
+
+$moved = New-SetupAddin 'msarson' 'https://github.com/someoneelse/Moved/releases/download/v1.0.0/Moved-1.0.0-Setup.exe'
+$refused = $false; $why = ''
+try { $downloadSetup.Invoke($null, @($moved)) }
+catch { $refused = $true; $why = $_.Exception.InnerException.Message }
+Check 'a transferred repository is refused' $refused 'downloaded an installer from another account'
+Check 'and the refusal names the account it would have come from' `
+    ($why -like '*someoneelse*') "message was '$why'"
+Check 'nothing landed in Downloads' `
+    (-not (Test-Path (Join-Path $env:USERPROFILE 'Downloads\Moved-1.0.0-Setup.exe'))) `
+    'the installer was written anyway'
+
+$noRelease = $asm.CreateInstance('AddinFinder.RegistryAddin')
+$noRelease.Id = 'Unresolved'; $noRelease.Name = 'Unresolved'; $noRelease.GithubRepo = 'msarson/Unresolved'
+$refused2 = $false
+try { $downloadSetup.Invoke($null, @($noRelease)) } catch { $refused2 = $true }
+Check 'an unresolved release is refused rather than downloaded from nowhere' $refused2 'it proceeded'
+
 Remove-Item $sandbox -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host ''
 if ($fail -eq 0) { Write-Host 'ALL CHECKS PASSED' -ForegroundColor Green; exit 0 }
