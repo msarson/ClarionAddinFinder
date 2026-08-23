@@ -165,6 +165,50 @@ $refused2 = $false
 try { $downloadSetup.Invoke($null, @($noRelease, [string]$sandbox)) } catch { $refused2 = $true }
 Check 'an unresolved release is refused rather than downloaded from nowhere' $refused2 'it proceeded'
 
+Write-Host "`n11a. A release published today is seen today"
+# Regression. The pad called FetchAll(DateTime.Today) and that value became the clock for the
+# release cache. Fetching stamped the entry with MIDNIGHT, and freshness was then measured against
+# midnight too -- so the cached answer was perpetually nought hours old and the six-hour cache
+# behaved as "the first answer of the calendar day, frozen until the next one". A publisher could
+# tag a release and nobody would see it that day.
+#
+# Tested through FetchAll rather than Resolve, because Resolve was never wrong: every earlier test
+# here handed it DateTime.Now directly and it behaved perfectly. The defect lived in what the caller
+# passed, which is exactly the seam a test that calls the inner method cannot see.
+$clockStore = Join-Path $sandbox 'clock-store'
+New-Item -ItemType Directory -Force -Path $clockStore | Out-Null
+
+$rc = $asm.GetType('AddinFinder.RegistryClient').GetConstructor([Type[]]@([string])).Invoke(@([string]$clockStore))
+$null = $rc.FetchAll([DateTime]::Today)     # what the pad used to pass, and now never does
+
+$cacheFile = Join-Path $clockStore 'release-cache.json'
+if (-not (Test-Path $cacheFile)) {
+    Write-Host "  SKIP  no release resolved (rate limit or offline)" -ForegroundColor Yellow
+} else {
+    $stamped = ([regex]::Match((Get-Content $cacheFile -Raw), '"checkedOn":"([^"]+)"')).Groups[1].Value
+    $drift   = [Math]::Abs(([DateTime]::Now - [DateTime]::Parse($stamped)).TotalMinutes)
+    Write-Host "  stamped $stamped, real clock $([DateTime]::Now.ToString('yyyy-MM-dd HH:mm'))" -ForegroundColor DarkGray
+    Check 'the cache is stamped with the real time, not midnight' ($drift -lt 5) `
+        "stamped '$stamped', which is $([int]$drift) minutes from now"
+
+    # And the freshness rule it feeds: six hours means six hours.
+    $grType  = $asm.GetType('AddinFinder.GithubReleases')
+    $isFresh = $grType.GetMethod('IsFresh',
+        [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::NonPublic)
+    $probe = $asm.CreateInstance('AddinFinder.GithubRelease')
+    $probe.Tag = 'v1'; $probe.AssetUrl = 'https://example/x'
+
+    $probe.CheckedOn = [DateTime]::Now.AddHours(-1).ToString('yyyy-MM-dd HH:mm')
+    Check 'an hour old is still fresh'  ([bool]$isFresh.Invoke($null, @($probe, [DateTime]::Now))) 'refetched too eagerly'
+    $probe.CheckedOn = [DateTime]::Now.AddHours(-7).ToString('yyyy-MM-dd HH:mm')
+    Check 'seven hours old is not'      (-not [bool]$isFresh.Invoke($null, @($probe, [DateTime]::Now))) 'served a stale answer'
+    $probe.CheckedOn = [DateTime]::Today.ToString('yyyy-MM-dd HH:mm')
+    Check 'and a midnight stamp is judged against the real clock' `
+        (([DateTime]::Now - [DateTime]::Today).TotalHours -lt 6 -or
+         -not [bool]$isFresh.Invoke($null, @($probe, [DateTime]::Now))) `
+        'midnight was treated as always-fresh'
+}
+
 Write-Host "`n12. The user chooses where the installer is saved"
 # Asked every time, starting from wherever one was last saved. What is being fetched is an
 # executable the user has to find and run with elevation, so "it went somewhere, try Downloads" is

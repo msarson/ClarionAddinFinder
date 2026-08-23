@@ -129,7 +129,7 @@ namespace AddinFinder
                 RegistryResult? registry   = null;
                 SelfUpdateInfo? updateInfo = null;
 
-                try   { registry   = _registryClient.FetchAll(DateTime.Today); }
+                try   { registry   = _registryClient.FetchAll(DateTime.Now); }
                 catch (Exception ex) { registryEx = ex; }
 
                 try   { updateInfo = SelfUpdateChecker.Check(); }

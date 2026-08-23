@@ -91,7 +91,12 @@ namespace AddinFinder
                 var fetched = Fetch(ownerRepo);
                 if (fetched != null && fetched.IsUsable)
                 {
-                    fetched.CheckedOn   = now.ToString("yyyy-MM-dd HH:mm");
+                    // Stamped from the real clock, never from the caller's idea of now. When this
+                    // recorded whatever it was handed, one caller passing DateTime.Today wrote
+                    // midnight into the file and every later comparison measured against midnight,
+                    // so the entry never aged. "When did we last actually ask GitHub" is a fact
+                    // about the world; it is not the caller's to supply.
+                    fetched.CheckedOn   = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
                     _cache[ownerRepo]   = fetched;
                     Write();
                     return fetched;
@@ -106,7 +111,14 @@ namespace AddinFinder
         {
             DateTime checkedOn;
             if (!DateTime.TryParse(r.CheckedOn, out checkedOn)) return false;
-            return (now - checkedOn).TotalHours < CacheHours;
+
+            double hours = (now - checkedOn).TotalHours;
+
+            // A negative age means the entry claims to have been fetched in the future: a caller
+            // asking with a date rather than a time, a clock put back, a file copied between
+            // machines. Reading that as "nought hours old, therefore fresh" is how an answer gets
+            // pinned forever. Nothing is lost by asking GitHub again.
+            return hours >= 0 && hours < CacheHours;
         }
 
         private static GithubRelease? Fetch(string ownerRepo)

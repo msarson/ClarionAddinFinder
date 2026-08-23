@@ -51,7 +51,7 @@ namespace AddinFinder
         /// <summary>Legacy shape, kept so existing callers compile. Prefer FetchAll.</summary>
         public AddinRegistry Fetch()
         {
-            var result = FetchAll(DateTime.Today);
+            var result = FetchAll(DateTime.Now);
             return new AddinRegistry { Version = 2, Addins = result.Addins, Publishers = result.Publishers };
         }
 
@@ -62,8 +62,16 @@ namespace AddinFinder
         /// failure falls back to that publisher's cached list rather than to nothing. The distinction
         /// between "could not reach" and "the server says it is not there" is preserved all the way
         /// to the caller -- see PublisherHealth for why that matters.
+        ///
+        /// "now" must carry a TIME, not just a date. It used to be handed DateTime.Today, which was
+        /// harmless for publisher health -- that counts whole days -- but the same value went on to
+        /// become the clock for the release cache, which counts HOURS. Every refresh stamped the
+        /// cache with midnight and then measured against midnight, so the cached answer was
+        /// perpetually nought hours old and a six-hour cache behaved as "the first answer of the
+        /// calendar day, frozen until the next one". A publisher could tag a release and their users
+        /// would not see it that day. DateTime is the same type either way, so nothing complained.
         /// </summary>
-        public RegistryResult FetchAll(DateTime today)
+        public RegistryResult FetchAll(DateTime now)
         {
             var result = new RegistryResult();
 
@@ -100,17 +108,17 @@ namespace AddinFinder
                 try   { fetched = fetches[i].IsCompleted ? fetches[i].Result : NotAnswered(); }
                 catch { fetched = NotAnswered(); }
 
-                _health.Record(p.Id, fetched.Outcome, today);
+                _health.Record(p.Id, fetched.Outcome, now);
                 result.Outcomes[p.Id] = fetched.Outcome;
 
                 if (fetched.Outcome == FetchOutcome.Ok) _cache.Put(p.Id, fetched.Addins);
-                else if (_health.IsPresumedWithdrawn(p.Id, today)) result.PresumedWithdrawn.Add(p.Id);
+                else if (_health.IsPresumedWithdrawn(p.Id, now)) result.PresumedWithdrawn.Add(p.Id);
 
                 MergeIn(result.Addins,
                         fetched.Outcome == FetchOutcome.Ok ? fetched.Addins : _cache.Get(p.Id));
             }
 
-            ResolveSetupReleases(result.Addins, today);
+            ResolveSetupReleases(result.Addins, now);
             return result;
         }
 
@@ -124,11 +132,11 @@ namespace AddinFinder
         /// A failure here leaves Release null, which reads as "no installer available" rather than
         /// as an error. Losing a version number should not make a working addin look broken.
         /// </summary>
-        private void ResolveSetupReleases(List<RegistryAddin> addins, DateTime today)
+        private void ResolveSetupReleases(List<RegistryAddin> addins, DateTime now)
         {
             foreach (var addin in addins.Where(a => a.IsSetup))
             {
-                try { addin.Release = _releases.Resolve(addin.GithubRepo, today); }
+                try { addin.Release = _releases.Resolve(addin.GithubRepo, now); }
                 catch { /* cached answer, or none */ }
 
                 // The registry carries no version for these, so the release is the only source.

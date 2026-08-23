@@ -80,6 +80,10 @@ namespace AddinFinder
             return e;
         }
 
+        /// <summary>
+        /// Records how one fetch went. Only the DATE part of <paramref name="today"/> is used --
+        /// this counts whole days, and the caller may reasonably pass a full timestamp.
+        /// </summary>
         public void Record(string publisherId, FetchOutcome outcome, DateTime today)
         {
             var e = For(publisherId);

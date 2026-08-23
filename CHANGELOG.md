@@ -62,6 +62,17 @@ All notable changes to Addin Finder are documented here.
   how you keep your downloads, not a decision about a Clarion installation.
 
 ### Fixed
+- **A release published today is visible today.** The six-hour release cache was not caching for six
+  hours — it was pinning the first answer of the calendar day until midnight. The pad refreshed with
+  `DateTime.Today`, and that value became both the clock the cache was stamped with *and* the clock
+  it was measured against, so every cached answer was perpetually nought hours old. A publisher
+  could tag a release and nobody would see it that day, however many times they pressed Refresh.
+
+  The pad now refreshes with a real clock. Two further changes make the cache immune rather than
+  reliant on every caller getting that right: an entry is stamped from the actual time of the fetch
+  and never from whatever the caller called "now", and an entry claiming to come from the future — a
+  clock put back, a file copied between machines — is treated as stale rather than as nought hours
+  old. A cache already written by an affected build corrects itself on the next refresh.
 - **`1.0` and `1.0.0` are the same version.** Installed-versus-published was a text comparison, so
   an addin whose manifest wrote the version one way and whose registry entry wrote it the other
   showed "Update available" permanently, and installing could never clear it. It is now compared
