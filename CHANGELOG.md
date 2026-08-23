@@ -2,9 +2,37 @@
 
 All notable changes to Addin Finder are documented here.
 
-## [0.8.1] - unreleased
+## [0.9.0] - 2026-08-23
 
 ### Added
+- **Addins distributed as a Windows setup installer.** Some addins ship as a setup `.exe` rather
+  than as files Addin Finder can place. A registry entry with a `githubRepo` field is treated as
+  one of these: the current release is resolved from GitHub, and the button becomes **Download**.
+
+  Addin Finder downloads the installer and stops there. It does not run it. The setup elevates,
+  executes code we have just told the user nobody reviews, and then chooses its own Clarion targets
+  — possibly not the one running the pad. Handing over the file is the honest boundary: the user
+  decides whether to run it, and Windows asks about elevation rather than us arranging it.
+
+  Nothing is recorded as installed, and **Remove is not offered** — those files belong to the
+  addin's own uninstaller, and deleting them behind its back would leave Windows believing it is
+  still there. The addin still appears as installed afterwards, because the disk reconciliation
+  added in 0.7.1 finds it like anything else.
+
+  Setup addins live under their own **`setupAddins`** key rather than alongside ordinary entries,
+  so builds before 0.9.0 never see them. That matters: such an entry has no download URLs, and an
+  older client would list it, download nothing, create an *empty* folder under `accessory\addins`
+  anyway, and record a phantom install — and an empty folder in the folder Clarion scans at start-up
+  is the shape that has already stopped an IDE starting. Installing an entry with nothing to
+  download is now refused outright as well, in case one is ever filed under the wrong key.
+
+  The registry records a repository rather than a download URL, because publishers rename the asset
+  every release — `ClarionAssistant-5.8-Setup.exe`, then `-5.8.1-` — so a pinned link would 404
+  almost immediately. Resolving through the releases API also means **nobody maintains a version
+  for these**: Clarion Assistant shipped eight releases in seven weeks, and any hand-kept entry
+  would have been stale within days of each one. Answers are cached for six hours, so the pad does
+  not ask GitHub on every open for a tag that changes a few times a month — and so a machine with no
+  network still shows the addin and its last known version.
 - **Addin Finder now warns when two addins under the same Clarion declare the same
   `<Identity name>`.** Clarion loads every subfolder of `accessory\addins` at start-up and refuses
   to start *at all* when that happens — the user gets "Identity name used by multiple addins" and
@@ -22,6 +50,78 @@ All notable changes to Addin Finder are documented here.
   and acted on immediately. Detection reads each manifest rather than trusting folder names, since
   the two differ in practice — FlattenCode installs as `FlattenCode` and declares
   `<Identity name="FlattenCode.Addin"/>`.
+
+- **You choose where a downloaded installer is saved.** Addin Finder asks before fetching one,
+  starting from wherever you last saved one and from your Downloads folder the first time. What is
+  being fetched is an executable you then have to find and run with elevation, and "it went
+  somewhere, try Downloads" is not a good enough account of one. Cancel downloads nothing.
+
+  Asked every time rather than set once in a screen you would have to go looking for — but the
+  answer is remembered, so after the first time it is a keypress. A whole selection of setup addins
+  is asked about once, not once each. The choice is per machine, not per Clarion: it is a fact about
+  how you keep your downloads, not a decision about a Clarion installation.
+
+### Fixed
+- **A release published today is visible today.** The six-hour release cache was not caching for six
+  hours — it was pinning the first answer of the calendar day until midnight. The pad refreshed with
+  `DateTime.Today`, and that value became both the clock the cache was stamped with *and* the clock
+  it was measured against, so every cached answer was perpetually nought hours old. A publisher
+  could tag a release and nobody would see it that day, however many times they pressed Refresh.
+
+  The pad now refreshes with a real clock. Two further changes make the cache immune rather than
+  reliant on every caller getting that right: an entry is stamped from the actual time of the fetch
+  and never from whatever the caller called "now", and an entry claiming to come from the future — a
+  clock put back, a file copied between machines — is treated as stale rather than as nought hours
+  old. A cache already written by an affected build corrects itself on the next refresh.
+- **`1.0` and `1.0.0` are the same version.** Installed-versus-published was a text comparison, so
+  an addin whose manifest wrote the version one way and whose registry entry wrote it the other
+  showed "Update available" permanently, and installing could never clear it. It is now compared
+  component by component.
+
+  Ordinary addins never really hit this: the installed version is the very string Addin Finder read
+  from the registry, so it matched character for character. It is addins that install themselves
+  that this was waiting for — nothing is recorded for those, so the installed version is read from
+  the publisher's `<Identity version>` and the published one from the release tag. Those are written
+  by different hands on different days, and expecting them to agree on trailing zeroes was expecting
+  too much of everybody. A copy that genuinely differs, in either direction, still reads as an
+  update — a publisher who rolls back a bad release means the earlier one to be installed.
+- **A publisher may only point at a setup installer in their own GitHub account.** The rule that a
+  publisher can serve binaries only from their own account was checked on an entry's download URLs
+  — and a setup entry has none, because the release asset is resolved from a repository instead. All
+  three URL checks passed on empty strings, and the repository nobody was checking was the thing
+  actually fetched. That is the worst place to have left the gap open: what arrives is an `.exe`
+  that the user then runs with elevation. The repository's owner must now match the publisher id,
+  and a violation drops the entry rather than the publisher, exactly as a bad URL does.
+
+  Checked once more at the moment of download, because repositories move: GitHub follows a transfer
+  or a rename transparently, so a repository that belonged to the publisher yesterday can resolve to
+  assets under another account today without a character of the registry changing. The asset URL
+  comes back from GitHub rather than from the entry, so that is the one worth checking last.
+- **A setup addin no longer turns back into an ordinary one after a trip through the cache.** The
+  registry cache copied every field of an entry except the repository — and the repository is what
+  makes an addin self-installing. Any fallback went through it: a publisher who could not be
+  reached, or a machine with no network at all. The addin came back looking like one Addin Finder
+  could place, so the button read **Install** rather than Download, on an entry that by design has
+  no URLs to install from. The refusal added earlier in 0.9.0 stopped that going anywhere harmful,
+  but the offer should never have been made — and with the repository gone, the last known version
+  could not be looked up either, which is the one thing the cache was there to keep showing.
+- **An addin that has just been withdrawn is described, not reduced to a folder name.** The cache
+  exists partly so that someone still running a withdrawn addin can be told what it is and who
+  wrote it. That never actually happened: a refresh replaces a publisher's list wholesale, and it
+  does so *before* anything asks what became of an installed addin — so the entry being asked about
+  had already been overwritten, and the user was shown a bare id with no description, author or
+  homepage, at the moment they most needed them. Entries that drop out of a list are now kept aside
+  under their own `retired` key, and an addin that reappears comes back off that shelf.
+
+  They are deliberately not kept among the publisher's own entries, which are read back as that
+  publisher's current list — a withdrawn addin filed there would simply be offered for installation
+  again.
+
+  This also settles what is said about an addin nobody installed *through* Addin Finder, such as one
+  that arrived via its own setup. The report is about the listing, never about a relationship:
+  "a publisher we follow used to list this and no longer does" is true however the addin got there,
+  while an addin nobody we follow has ever listed still says nothing at all. Remove stays unoffered
+  for a withdrawn setup addin, which is the second thing the repository fix above quietly buys.
 
 ## [0.8.0] - 2026-08-22
 

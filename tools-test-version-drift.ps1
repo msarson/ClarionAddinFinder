@@ -67,6 +67,21 @@ Check 'and the id alone does not match it' `
     ($null -eq $installer.FindConflictingIdentity('SomethingElse', 'FlattenCode')) `
     'matched a name no manifest declares'
 
+Write-Host "`nVersions are compared as numbers, not as text"
+# The pad decides Installed vs Update available with this. For an addin Addin Finder placed, the
+# installed version is the very string it read from the registry, so text comparison never showed.
+# A setup addin records nothing: its installed version is read from the publisher's manifest and the
+# published one from the release tag -- written by different hands, on different days. Expecting
+# those to agree on trailing zeroes was expecting too much.
+$cmp = $asm.GetType('AddinFinder.InstalledAddinStore').GetMethod(
+           'CompareDotted', [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::Public)
+
+Check '1.0 and 1.0.0 are the same version'    ($cmp.Invoke($null, @([string]'1.0',   [string]'1.0.0'))   -eq 0) 'read as different'
+Check '1.0.0 and 1.0 likewise, either way up' ($cmp.Invoke($null, @([string]'1.0.0', [string]'1.0'))     -eq 0) 'not symmetric'
+Check '1.0.1 is newer than 1.0'               ($cmp.Invoke($null, @([string]'1.0.1', [string]'1.0'))     -gt 0) 'real difference lost'
+Check '1.9 is older than 1.10, not newer'     ($cmp.Invoke($null, @([string]'1.9',   [string]'1.10'))    -lt 0) 'string comparison bug'
+Check 'and a real difference still differs'   ($cmp.Invoke($null, @([string]'1.0.0', [string]'2.0.0'))   -ne 0) 'collapsed two versions'
+
 Remove-Item $sandbox -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host ''
 if ($fail -eq 0) { Write-Host 'ALL CHECKS PASSED' -ForegroundColor Green; exit 0 }

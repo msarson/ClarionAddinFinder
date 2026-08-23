@@ -37,19 +37,21 @@ namespace AddinFinder
 
         private readonly RegistryCache   _cache;
         private readonly PublisherHealth _health;
+        private readonly GithubReleases  _releases;
 
         public RegistryClient() : this(DefaultStoreDir) { }
 
         public RegistryClient(string storeDir)
         {
-            _cache  = new RegistryCache(storeDir);
-            _health = new PublisherHealth(storeDir);
+            _cache    = new RegistryCache(storeDir);
+            _health   = new PublisherHealth(storeDir);
+            _releases = new GithubReleases(storeDir);
         }
 
         /// <summary>Legacy shape, kept so existing callers compile. Prefer FetchAll.</summary>
         public AddinRegistry Fetch()
         {
-            var result = FetchAll(DateTime.Today);
+            var result = FetchAll(DateTime.Now);
             return new AddinRegistry { Version = 2, Addins = result.Addins, Publishers = result.Publishers };
         }
 
@@ -60,8 +62,16 @@ namespace AddinFinder
         /// failure falls back to that publisher's cached list rather than to nothing. The distinction
         /// between "could not reach" and "the server says it is not there" is preserved all the way
         /// to the caller -- see PublisherHealth for why that matters.
+        ///
+        /// "now" must carry a TIME, not just a date. It used to be handed DateTime.Today, which was
+        /// harmless for publisher health -- that counts whole days -- but the same value went on to
+        /// become the clock for the release cache, which counts HOURS. Every refresh stamped the
+        /// cache with midnight and then measured against midnight, so the cached answer was
+        /// perpetually nought hours old and a six-hour cache behaved as "the first answer of the
+        /// calendar day, frozen until the next one". A publisher could tag a release and their users
+        /// would not see it that day. DateTime is the same type either way, so nothing complained.
         /// </summary>
-        public RegistryResult FetchAll(DateTime today)
+        public RegistryResult FetchAll(DateTime now)
         {
             var result = new RegistryResult();
 
@@ -98,17 +108,41 @@ namespace AddinFinder
                 try   { fetched = fetches[i].IsCompleted ? fetches[i].Result : NotAnswered(); }
                 catch { fetched = NotAnswered(); }
 
-                _health.Record(p.Id, fetched.Outcome, today);
+                _health.Record(p.Id, fetched.Outcome, now);
                 result.Outcomes[p.Id] = fetched.Outcome;
 
                 if (fetched.Outcome == FetchOutcome.Ok) _cache.Put(p.Id, fetched.Addins);
-                else if (_health.IsPresumedWithdrawn(p.Id, today)) result.PresumedWithdrawn.Add(p.Id);
+                else if (_health.IsPresumedWithdrawn(p.Id, now)) result.PresumedWithdrawn.Add(p.Id);
 
                 MergeIn(result.Addins,
                         fetched.Outcome == FetchOutcome.Ok ? fetched.Addins : _cache.Get(p.Id));
             }
 
+            ResolveSetupReleases(result.Addins, now);
             return result;
+        }
+
+        /// <summary>
+        /// Fills in the current release for addins that install themselves.
+        ///
+        /// Their version cannot come from the registry: publishers rename the asset every release,
+        /// and Clarion Assistant shipped eight releases in seven weeks -- a hand-kept entry would be
+        /// stale within days of each. Asking the releases API instead means nobody maintains it.
+        ///
+        /// A failure here leaves Release null, which reads as "no installer available" rather than
+        /// as an error. Losing a version number should not make a working addin look broken.
+        /// </summary>
+        private void ResolveSetupReleases(List<RegistryAddin> addins, DateTime now)
+        {
+            foreach (var addin in addins.Where(a => a.IsSetup))
+            {
+                try { addin.Release = _releases.Resolve(addin.GithubRepo, now); }
+                catch { /* cached answer, or none */ }
+
+                // The registry carries no version for these, so the release is the only source.
+                if (addin.Release != null && addin.Release.Version.Length > 0)
+                    addin.Version = addin.Release.Version;
+            }
         }
 
         /// <summary>
@@ -186,10 +220,16 @@ namespace AddinFinder
                 // A publisher may only serve binaries from their own account. Enforced here rather
                 // than by anyone maintaining a list. A violation drops the entry, not the publisher:
                 // one bad URL should not take out someone's other addins.
+                //
+                // OwnsRepo covers the addins that install themselves. Those carry no URLs, so the
+                // three checks below all pass on empty strings while the installer actually fetched
+                // could come from any account at all -- the rule with the widest gap left open under
+                // it, since what the user ends up running is an elevated setup.
                 var kept = addins.Where(a =>
                     p.OwnsDownloadUrl(a.DownloadZipUrl) &&
                     p.OwnsDownloadUrl(a.AddinFileUrl) &&
-                    a.DownloadUrls.All(p.OwnsDownloadUrl)).ToList();
+                    a.DownloadUrls.All(p.OwnsDownloadUrl) &&
+                    p.OwnsRepo(a.GithubRepo)).ToList();
 
                 return new PublisherFetch { Outcome = FetchOutcome.Ok, Addins = kept };
             }

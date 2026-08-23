@@ -56,12 +56,35 @@ Check 'other account refused' (-not $pub.OwnsDownloadUrl('https://github.com/som
 Check 'non-github refused'    (-not $pub.OwnsDownloadUrl('https://evil.example.com/x.dll')) 'accepted arbitrary host'
 Check 'empty url tolerated'   ($pub.OwnsDownloadUrl('')) 'rejected empty'
 
+# The same rule for an addin that installs itself, which records "owner/repo" and no URLs at all --
+# so all three URL checks above pass on empty strings while the installer fetched could have come
+# from anywhere. Strict: approving a publisher is not permission to point users elsewhere later.
+Check 'own repository accepted'   ($pub.OwnsRepo('msarson/TestSetupAddin')) 'rejected own repo'
+Check 'other account refused'     (-not $pub.OwnsRepo('someoneelse/evil')) 'accepted a foreign repository'
+Check 'a bare name is refused'    (-not $pub.OwnsRepo('TestSetupAddin')) 'guessed an owner'
+Check 'a leading slash is refused' (-not $pub.OwnsRepo('/msarson/x')) 'accepted an empty owner'
+Check 'case is not significant'   ($pub.OwnsRepo('MSarson/x')) 'rejected on case alone'
+Check 'empty repo tolerated'      ($pub.OwnsRepo('')) 'rejected empty'
+
 Write-Host "`n3. A real publisher file parses (msarson/clarion-addins)"
 $parser = $asm.GetType('AddinFinder.SimpleJsonParser')
 $m = $parser.GetMethod('ParsePublisherAddins', [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::Public)
 $json = (Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/msarson/clarion-addins/main/addins.json' -UseBasicParsing).Content
 $addins = $m.Invoke($null, @($json, 'msarson'))
-Check 'six addins parsed' ($addins.Count -eq 6) "got $($addins.Count)"
+# Not an exact count: this reads the LIVE file, so pinning a number here means the suite fails the
+# day msarson publishes anything. What matters is that the real file parses into entries of the
+# right shape.
+Check 'the real list parses into addins' ($addins.Count -ge 6) "got $($addins.Count)"
+$setups  = @($addins | Where-Object { $_.IsSetup })
+$ordinary = @($addins | Where-Object { -not $_.IsSetup })
+Write-Host "  parsed: $($ordinary.Count) ordinary, $($setups.Count) setup" -ForegroundColor DarkGray
+Check 'ordinary entries carry a version' `
+    (@($ordinary | Where-Object { $_.Version.Length -eq 0 }).Count -eq 0) 'an entry has no version'
+Check 'setup entries carry a repository and no version' `
+    (@($setups | Where-Object { $_.GithubRepo.Length -eq 0 -or $_.Version.Length -gt 0 }).Count -eq 0) `
+    'a setup entry is the wrong shape'
+Check 'and every setup repository belongs to the publisher' `
+    (@($setups | Where-Object { -not $pub.OwnsRepo($_.GithubRepo) }).Count -eq 0) 'a repository is not msarson-owned'
 Check 'every entry stamped with its publisher' `
     (@($addins | Where-Object { $_.Publisher -ne 'msarson' }).Count -eq 0) 'publisher not stamped'
 Check 'all download URLs pass the ownership check' `

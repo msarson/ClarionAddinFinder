@@ -28,6 +28,10 @@ namespace AddinFinder
             foreach (var a in Entries(raw, "addins"))
                 registry.Addins.Add(MapAddin(a));
 
+            // Setup addins in the root registry, for a publisher who has not federated yet. Same
+            // separate key, for the same reason: a build before 0.9.0 must not see them.
+            foreach (var a in SetupEntries(raw, "")) registry.Addins.Add(a);
+
             foreach (var p in Entries(raw, "publishers"))
                 registry.Publishers.Add(new Publisher
                 {
@@ -60,8 +64,102 @@ namespace AddinFinder
                 addin.Publisher = publisherId;
                 result.Add(addin);
             }
+            foreach (var addin in SetupEntries(raw, publisherId)) result.Add(addin);
             return result;
         }
+
+        /// <summary>
+        /// Addins distributed as a setup installer, read from their own "setupAddins" key.
+        ///
+        /// A separate key, and not a flag on an ordinary entry, because of what builds before 0.9.0
+        /// would do with one. Such an entry carries no download URLs -- the asset is renamed every
+        /// release, so there is nothing to pin -- and an older client walks straight through that:
+        /// the URL-ownership check passes (nothing to check), Download returns immediately on an
+        /// empty URL, and MoveIntoPlace still creates the destination before copying nothing into
+        /// it. The user would be left with an EMPTY folder under accessory\addins and a phantom
+        /// install recorded against it. An empty folder in the scanned root is exactly the shape
+        /// that has already stopped a Clarion starting.
+        ///
+        /// Older builds read only "addins", so putting these anywhere else makes them invisible
+        /// rather than dangerous. Same reasoning as installed.v2.json and settings.v2.json: a new
+        /// shape does not go where an old reader will find it and misunderstand it.
+        /// </summary>
+        private static IEnumerable<RegistryAddin> SetupEntries(Dictionary<string, object> raw,
+                                                               string publisherId)
+        {
+            foreach (var a in Entries(raw, "setupAddins"))
+            {
+                var addin = MapAddin(a);
+                addin.Publisher = publisherId;
+
+                // Without a repository there is nothing to resolve a release from, so the entry
+                // could only ever render as an addin that cannot be obtained.
+                if (addin.GithubRepo.Length == 0) continue;
+                yield return addin;
+            }
+        }
+
+        /// <summary>
+        /// Reads a GitHub /releases/latest response down to the tag and the installer asset.
+        ///
+        /// The asset is chosen by extension rather than by name, because the name changes every
+        /// release -- which is the whole reason the URL cannot live in the registry.
+        /// </summary>
+        public static GithubRelease? ParseGithubRelease(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            var raw = _js.Deserialize<Dictionary<string, object>>(json);
+
+            var release = new GithubRelease { Tag = S(raw, "tag_name") };
+            if (release.Tag.Length == 0) return null;
+
+            var assets = Entries(raw, "assets").ToList();
+            var chosen = assets.FirstOrDefault(a => S(a, "name").EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                      ?? assets.FirstOrDefault(a => S(a, "name").EndsWith(".msi", StringComparison.OrdinalIgnoreCase));
+
+            // A release with exactly one asset and an unexpected extension is still almost certainly
+            // the installer -- better than reporting an update the user cannot get.
+            if (chosen == null && assets.Count == 1) chosen = assets[0];
+            if (chosen == null) return null;
+
+            release.AssetName = S(chosen, "name");
+            release.AssetUrl  = S(chosen, "browser_download_url");
+            return release;
+        }
+
+        public static Dictionary<string, GithubRelease> ParseReleaseCache(string json)
+        {
+            var result = new Dictionary<string, GithubRelease>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(json)) return result;
+
+            var raw = _js.Deserialize<Dictionary<string, object>>(json);
+            foreach (var e in Entries(raw, "releases"))
+            {
+                string repo = S(e, "repo");
+                if (repo.Length == 0) continue;
+                result[repo] = new GithubRelease
+                {
+                    Tag       = S(e, "tag"),
+                    AssetUrl  = S(e, "assetUrl"),
+                    AssetName = S(e, "assetName"),
+                    CheckedOn = S(e, "checkedOn"),
+                };
+            }
+            return result;
+        }
+
+        public static string SerialiseReleaseCache(Dictionary<string, GithubRelease> cache)
+            => _js.Serialize(new
+            {
+                releases = cache.Select(pair => new
+                {
+                    repo      = pair.Key,
+                    tag       = pair.Value.Tag,
+                    assetUrl  = pair.Value.AssetUrl,
+                    assetName = pair.Value.AssetName,
+                    checkedOn = pair.Value.CheckedOn,
+                }).ToList()
+            });
 
         /// <summary>
         /// Reads settings in either shape into the instance, which already knows which Clarion it
@@ -74,6 +172,7 @@ namespace AddinFinder
 
             var raw = _js.Deserialize<Dictionary<string, object>>(json);
             settings.SuppressRestartReminder = Bool(raw, "suppressRestartReminder");
+            settings.InstallerDownloadFolder = S(raw, "installerDownloadFolder");
 
             if (Int(raw, "version") >= 2)
             {
@@ -101,6 +200,7 @@ namespace AddinFinder
             {
                 version                 = 2,
                 suppressRestartReminder = settings.SuppressRestartReminder,
+                installerDownloadFolder = settings.InstallerDownloadFolder,
                 perClarion = perClarion.Select(c => new
                 {
                     root                   = c.Root,
@@ -141,9 +241,9 @@ namespace AddinFinder
                 }).ToList()
             });
 
-        public static Dictionary<string, List<RegistryAddin>> ParseRegistryCache(string json)
+        public static RegistryCacheDoc ParseRegistryCache(string json)
         {
-            var result = new Dictionary<string, List<RegistryAddin>>();
+            var result = new RegistryCacheDoc();
             if (string.IsNullOrWhiteSpace(json)) return result;
 
             var raw = _js.Deserialize<Dictionary<string, object>>(json);
@@ -158,19 +258,34 @@ namespace AddinFinder
                     addin.Publisher = id;
                     list.Add(addin);
                 }
-                result[id] = list;
+                result.ByPublisher[id] = list;
+            }
+
+            // Entries a publisher has since dropped. Their own key, never among the per-publisher
+            // lists: read back as part of a publisher's current list, a withdrawn addin would be
+            // offered for installation again. Each carries the publisher it came from, because that
+            // is the first thing someone asks about an addin that has just been withdrawn.
+            foreach (var a in Entries(raw, "retired"))
+            {
+                var addin = MapAddin(a);
+                if (addin.Id.Length == 0) continue;
+                addin.Publisher = S(a, "publisher");
+                result.Retired[addin.Id] = addin;
             }
             return result;
         }
 
-        public static string SerialiseRegistryCache(Dictionary<string, List<RegistryAddin>> byPublisher)
+        public static string SerialiseRegistryCache(
+            Dictionary<string, List<RegistryAddin>> byPublisher,
+            Dictionary<string, RegistryAddin> retired)
             => _js.Serialize(new
             {
                 publishers = byPublisher.Select(pair => new
                 {
                     id     = pair.Key,
                     addins = pair.Value.Select(SerialisableAddin).ToList()
-                }).ToList()
+                }).ToList(),
+                retired = retired.Values.Select(SerialisableAddin).ToList()
             });
 
         private static object SerialisableAddin(RegistryAddin a) => new
@@ -191,9 +306,15 @@ namespace AddinFinder
             changelogUrl    = a.ChangelogUrl,
             fork            = a.Fork,
             upstreamUrl     = a.UpstreamUrl,
+            githubRepo      = a.GithubRepo,
             status          = a.Status,
             statusNote      = a.StatusNote,
             replacedBy      = a.ReplacedBy,
+
+            // Redundant for a per-publisher entry, which is read back under the id that owns it, but
+            // a retired one has no such enclosure -- and an addin that has just been withdrawn is
+            // the last one that should be unable to say whose it was.
+            publisher       = a.Publisher,
         };
 
         /// <summary>
@@ -292,6 +413,7 @@ namespace AddinFinder
             ChangelogUrl    = S(a, "changelogUrl"),
             Fork            = Bool(a, "fork"),
             UpstreamUrl     = S(a, "upstreamUrl"),
+            GithubRepo      = S(a, "githubRepo"),
             Status          = Or(S(a, "status"), AddinLifecycle.Active),
             StatusNote      = S(a, "statusNote"),
             ReplacedBy      = S(a, "replacedBy"),

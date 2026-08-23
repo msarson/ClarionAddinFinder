@@ -215,7 +215,7 @@ namespace AddinFinder
         }
 
         /// <summary>-1 if a &lt; b, 0 if equal, 1 if a &gt; b. Component-wise, so 1.10 beats 1.9.</summary>
-        private static int CompareDotted(string a, string b)
+        public static int CompareDotted(string a, string b)
         {
             string[] pa = (a ?? "").Split('.'), pb = (b ?? "").Split('.');
             for (int i = 0; i < Math.Max(pa.Length, pb.Length); i++)

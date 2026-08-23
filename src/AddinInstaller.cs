@@ -208,9 +208,87 @@ namespace AddinFinder
             catch { return ""; }
         }
 
+        /// <summary>
+        /// Downloads a setup installer and returns where it landed. Does not run it.
+        ///
+        /// Addin Finder is a downloader for these, not an installer. Running the setup would mean
+        /// elevating and executing code we have told the user nobody reviews, and the installer then
+        /// chooses its own Clarion targets -- possibly not the one running this pad. Handing over
+        /// the file and stepping back is the honest boundary: the user decides whether to run it,
+        /// and Windows asks about elevation rather than us arranging it on their behalf.
+        ///
+        /// Nothing is recorded as installed. The setup writes files we did not place, and the addin
+        /// is picked up by the normal disk reconciliation once they are there.
+        /// </summary>
+        /// <summary>
+        /// Where installers go when the user has not said otherwise, and the fallback when the
+        /// folder they chose last has since gone -- a removable drive, or one they deleted. A
+        /// missing folder must not fail the download; it just means the question gets asked again
+        /// from a sensible place.
+        /// </summary>
+        public static string DefaultDownloadFolder()
+        {
+            string downloads = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            return Directory.Exists(downloads)
+                ? downloads
+                : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        }
+
+        /// <summary>The folder to start from: what they chose last, if it is still there.</summary>
+        public static string ResolveDownloadFolder(string remembered)
+            => !string.IsNullOrEmpty(remembered) && Directory.Exists(remembered)
+                ? remembered
+                : DefaultDownloadFolder();
+
+        public static string DownloadSetup(RegistryAddin addin, string folder)
+        {
+            if (addin.Release == null || !addin.Release.IsUsable)
+                throw new InvalidOperationException(
+                    addin.Name + ": no installer could be resolved from " + addin.GithubRepo);
+
+            // The repository was checked against the publisher when the list was read, but a
+            // repository can move: GitHub follows a transfer or rename transparently, so a name that
+            // belonged to the publisher yesterday can resolve to assets under someone else's account
+            // today, without a single character of the registry changing. The asset URL comes back
+            // from GitHub rather than from the entry, so checking it here is checking the thing that
+            // will actually be fetched -- and this one ends up being run with elevation.
+            if (addin.Publisher.Length > 0 &&
+                !addin.Release.AssetUrl.StartsWith("https://github.com/" + addin.Publisher + "/",
+                                                   StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    addin.Name + ": the installer resolved to " + addin.Release.AssetUrl +
+                    ", which is not under github.com/" + addin.Publisher +
+                    ". Refusing to download it.");
+
+            // Never a temp folder, wherever the user points this: they have to find the file and
+            // run it themselves, and one Windows may clean up underneath them is a poor thing to
+            // point at. A folder that has gone since it was chosen falls back rather than failing.
+            folder = ResolveDownloadFolder(folder);
+
+            string dest = Path.Combine(folder, addin.Release.AssetName);
+            Download(addin.Release.AssetUrl, dest);
+            return dest;
+        }
+
         /// <summary>Returns true if the update was staged (files locked); false if applied immediately.</summary>
         public bool Install(RegistryAddin addin, out bool staged)
         {
+            if (addin.IsSetup)
+                throw new InvalidOperationException(
+                    addin.Name + " installs itself; download the setup and let the user run it.");
+
+            // An entry with nothing to download would otherwise proceed quietly to its conclusion:
+            // Download returns immediately on an empty URL, and MoveIntoPlace still creates the
+            // destination before copying nothing into it, leaving an EMPTY folder under the root
+            // Clarion scans at start-up. That is the shape that has already stopped a Clarion
+            // starting, so refuse rather than produce it.
+            if (string.IsNullOrEmpty(addin.DownloadZipUrl)
+                && string.IsNullOrEmpty(addin.AddinFileUrl)
+                && addin.DownloadUrls.Count == 0)
+                throw new InvalidOperationException(
+                    addin.Name + ": the registry entry has nothing to download.");
+
             staged = false;
             string folder = Path.Combine(_addinsRoot, addin.Id);
 

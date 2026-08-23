@@ -55,6 +55,19 @@ namespace AddinFinder
         /// </summary>
         public bool SuppressRestartReminder { get; set; }
 
+        /// <summary>
+        /// Where the last setup installer was saved, or "" for never asked.
+        ///
+        /// Global, for the same reason as the reminder above: it is a fact about this person's
+        /// machine and how they like to keep their downloads, not a decision about a Clarion.
+        /// Asking again per Clarion would re-ask a question they have already answered.
+        ///
+        /// Remembered rather than fixed. The folder picker still opens every time -- being told
+        /// where a downloaded executable went matters more than saving a click -- but it opens
+        /// where they last put one, so answering it is a keypress after the first time.
+        /// </summary>
+        public string InstallerDownloadFolder { get; set; } = "";
+
         /// <summary>The Clarion these consent values belong to.</summary>
         public string ClarionRootPath { get; private set; } = "";
 
