@@ -172,6 +172,7 @@ namespace AddinFinder
 
             var raw = _js.Deserialize<Dictionary<string, object>>(json);
             settings.SuppressRestartReminder = Bool(raw, "suppressRestartReminder");
+            settings.InstallerDownloadFolder = S(raw, "installerDownloadFolder");
 
             if (Int(raw, "version") >= 2)
             {
@@ -199,6 +200,7 @@ namespace AddinFinder
             {
                 version                 = 2,
                 suppressRestartReminder = settings.SuppressRestartReminder,
+                installerDownloadFolder = settings.InstallerDownloadFolder,
                 perClarion = perClarion.Select(c => new
                 {
                     root                   = c.Root,

@@ -220,7 +220,28 @@ namespace AddinFinder
         /// Nothing is recorded as installed. The setup writes files we did not place, and the addin
         /// is picked up by the normal disk reconciliation once they are there.
         /// </summary>
-        public static string DownloadSetup(RegistryAddin addin)
+        /// <summary>
+        /// Where installers go when the user has not said otherwise, and the fallback when the
+        /// folder they chose last has since gone -- a removable drive, or one they deleted. A
+        /// missing folder must not fail the download; it just means the question gets asked again
+        /// from a sensible place.
+        /// </summary>
+        public static string DefaultDownloadFolder()
+        {
+            string downloads = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            return Directory.Exists(downloads)
+                ? downloads
+                : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        }
+
+        /// <summary>The folder to start from: what they chose last, if it is still there.</summary>
+        public static string ResolveDownloadFolder(string remembered)
+            => !string.IsNullOrEmpty(remembered) && Directory.Exists(remembered)
+                ? remembered
+                : DefaultDownloadFolder();
+
+        public static string DownloadSetup(RegistryAddin addin, string folder)
         {
             if (addin.Release == null || !addin.Release.IsUsable)
                 throw new InvalidOperationException(
@@ -240,12 +261,10 @@ namespace AddinFinder
                     ", which is not under github.com/" + addin.Publisher +
                     ". Refusing to download it.");
 
-            // Downloads rather than a temp folder: the user has to find this and run it themselves,
-            // and a file Windows may clean up underneath them is a poor thing to point at.
-            string folder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-            if (!Directory.Exists(folder))
-                folder = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            // Never a temp folder, wherever the user points this: they have to find the file and
+            // run it themselves, and one Windows may clean up underneath them is a poor thing to
+            // point at. A folder that has gone since it was chosen falls back rather than failing.
+            folder = ResolveDownloadFolder(folder);
 
             string dest = Path.Combine(folder, addin.Release.AssetName);
             Download(addin.Release.AssetUrl, dest);

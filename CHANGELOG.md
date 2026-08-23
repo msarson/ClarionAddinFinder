@@ -51,7 +51,29 @@ All notable changes to Addin Finder are documented here.
   the two differ in practice — FlattenCode installs as `FlattenCode` and declares
   `<Identity name="FlattenCode.Addin"/>`.
 
+- **You choose where a downloaded installer is saved.** Addin Finder asks before fetching one,
+  starting from wherever you last saved one and from your Downloads folder the first time. What is
+  being fetched is an executable you then have to find and run with elevation, and "it went
+  somewhere, try Downloads" is not a good enough account of one. Cancel downloads nothing.
+
+  Asked every time rather than set once in a screen you would have to go looking for — but the
+  answer is remembered, so after the first time it is a keypress. A whole selection of setup addins
+  is asked about once, not once each. The choice is per machine, not per Clarion: it is a fact about
+  how you keep your downloads, not a decision about a Clarion installation.
+
 ### Fixed
+- **`1.0` and `1.0.0` are the same version.** Installed-versus-published was a text comparison, so
+  an addin whose manifest wrote the version one way and whose registry entry wrote it the other
+  showed "Update available" permanently, and installing could never clear it. It is now compared
+  component by component.
+
+  Ordinary addins never really hit this: the installed version is the very string Addin Finder read
+  from the registry, so it matched character for character. It is addins that install themselves
+  that this was waiting for — nothing is recorded for those, so the installed version is read from
+  the publisher's `<Identity version>` and the published one from the release tag. Those are written
+  by different hands on different days, and expecting them to agree on trailing zeroes was expecting
+  too much of everybody. A copy that genuinely differs, in either direction, still reads as an
+  update — a publisher who rolls back a bad release means the earlier one to be installed.
 - **A publisher may only point at a setup installer in their own GitHub account.** The rule that a
   publisher can serve binaries only from their own account was checked on an entry's download URLs
   — and a setup entry has none, because the release asset is resolved from a repository instead. All

@@ -71,7 +71,7 @@ Check 'Install() refuses a setup addin' $refused 'it tried to install files it c
 
 Write-Host "`n6. Downloading needs a resolved release"
 $threw = $false
-try { $asm.GetType('AddinFinder.AddinInstaller').GetMethod('DownloadSetup', $static).Invoke($null, @($addin)) }
+try { $asm.GetType('AddinFinder.AddinInstaller').GetMethod('DownloadSetup', $static).Invoke($null, @($addin, [string]$sandbox)) }
 catch { $threw = $true }
 Check 'no release resolved -> refuses rather than guessing a URL' $threw 'attempted a download with no asset'
 
@@ -150,7 +150,7 @@ function New-SetupAddin([string]$publisher, [string]$assetUrl) {
 
 $moved = New-SetupAddin 'msarson' 'https://github.com/someoneelse/Moved/releases/download/v1.0.0/Moved-1.0.0-Setup.exe'
 $refused = $false; $why = ''
-try { $downloadSetup.Invoke($null, @($moved)) }
+try { $downloadSetup.Invoke($null, @($moved, [string]$sandbox)) }
 catch { $refused = $true; $why = $_.Exception.InnerException.Message }
 Check 'a transferred repository is refused' $refused 'downloaded an installer from another account'
 Check 'and the refusal names the account it would have come from' `
@@ -162,8 +162,42 @@ Check 'nothing landed in Downloads' `
 $noRelease = $asm.CreateInstance('AddinFinder.RegistryAddin')
 $noRelease.Id = 'Unresolved'; $noRelease.Name = 'Unresolved'; $noRelease.GithubRepo = 'msarson/Unresolved'
 $refused2 = $false
-try { $downloadSetup.Invoke($null, @($noRelease)) } catch { $refused2 = $true }
+try { $downloadSetup.Invoke($null, @($noRelease, [string]$sandbox)) } catch { $refused2 = $true }
 Check 'an unresolved release is refused rather than downloaded from nowhere' $refused2 'it proceeded'
+
+Write-Host "`n12. The user chooses where the installer is saved"
+# Asked every time, starting from wherever one was last saved. What is being fetched is an
+# executable the user has to find and run with elevation, so "it went somewhere, try Downloads" is
+# not good enough -- but nor is asking a question they have already answered, hence remembering.
+$resolve = $installer.GetMethod('ResolveDownloadFolder', $static)
+$default = $installer.GetMethod('DefaultDownloadFolder', $static)
+
+$chosen = Join-Path $sandbox 'my-installers'
+New-Item -ItemType Directory -Force -Path $chosen | Out-Null
+Check 'a folder the user chose is used'  ($resolve.Invoke($null, @([string]$chosen)) -eq $chosen) 'ignored the choice'
+Check 'nothing remembered falls back to the default' `
+    ($resolve.Invoke($null, @([string]'')) -eq $default.Invoke($null, @())) 'did not fall back'
+Check 'a folder that has since gone falls back rather than failing' `
+    ($resolve.Invoke($null, @([string](Join-Path $sandbox 'on-a-usb-stick-that-is-not-there'))) -eq $default.Invoke($null, @())) `
+    'a removed folder was used anyway'
+Check 'the default exists' (Test-Path $default.Invoke($null, @())) 'the default is not a real folder'
+
+# The setting itself: global, because it is about this machine and not about a Clarion.
+$settingsType = $asm.GetType('AddinFinder.AddinFinderSettings')
+$load = $settingsType.GetMethod('Load', $static, $null, [Type[]]@([string], [string]), $null)
+$settingsStore = Join-Path $sandbox 'settings-store'
+New-Item -ItemType Directory -Force -Path $settingsStore | Out-Null
+
+$s1 = $load.Invoke($null, @([string]'C:\Clarion11.1', [string]$settingsStore))
+Check 'nothing remembered to begin with' ($s1.InstallerDownloadFolder -eq '') "got '$($s1.InstallerDownloadFolder)'"
+$s1.InstallerDownloadFolder = $chosen
+$s1.Save()
+
+$s2 = $load.Invoke($null, @([string]'C:\Clarion11.1', [string]$settingsStore))
+Check 'it survives a save and load' ($s2.InstallerDownloadFolder -eq $chosen) "got '$($s2.InstallerDownloadFolder)'"
+$s3 = $load.Invoke($null, @([string]'C:\Clarion10', [string]$settingsStore))
+Check 'and is not re-asked for a different Clarion' ($s3.InstallerDownloadFolder -eq $chosen) `
+    'the choice was scoped per Clarion'
 
 Remove-Item $sandbox -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host ''

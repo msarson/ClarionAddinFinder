@@ -449,6 +449,40 @@ namespace AddinFinder
         }
 
         /// <summary>
+        /// Asks where the installer should go, starting from wherever one was last saved. Returns
+        /// null if the user cancelled, in which case nothing is downloaded at all.
+        ///
+        /// Asked every time rather than set once and forgotten. What is being fetched is an
+        /// executable the user is then expected to find and run with elevation, and "it went
+        /// somewhere, look in Downloads" is a poor thing to say about one. The folder is remembered
+        /// so that after the first time the question costs a keypress.
+        /// </summary>
+        private string? AskWhereToSave(List<RegistryAddin> addins)
+        {
+            string start = AddinInstaller.ResolveDownloadFolder(_settings.InstallerDownloadFolder);
+
+            using (var dialog = new FolderBrowserDialog())
+            {
+                dialog.Description = addins.Count == 1
+                    ? "Where should the installer for " + addins[0].Name + " be saved?"
+                    : "Where should these " + addins.Count + " installers be saved?";
+                dialog.SelectedPath      = start;
+                dialog.ShowNewFolderButton = true;
+
+                if (dialog.ShowDialog(_contentPanel) != DialogResult.OK) return null;
+
+                // Remembered as soon as it is chosen, not on success: they said where they want
+                // these to go, and a download that then fails does not unsay it.
+                if (dialog.SelectedPath != _settings.InstallerDownloadFolder)
+                {
+                    _settings.InstallerDownloadFolder = dialog.SelectedPath;
+                    _settings.Save();
+                }
+                return dialog.SelectedPath;
+            }
+        }
+
+        /// <summary>
         /// Downloads a setup installer and shows the user where it is. Deliberately does not run
         /// it: the installer elevates and chooses its own Clarion targets, and Addin Finder has
         /// just told the user nobody reviews addin code. Starting it for them would sit badly
@@ -459,6 +493,9 @@ namespace AddinFinder
             if (!InstallDisclaimerDialog.EnsureAccepted(
                     _contentPanel, _settings, addins, _lastResult.Publishers)) return;
 
+            string folder = AskWhereToSave(addins);
+            if (folder == null) return;          // cancelled: nothing downloaded, nothing changed
+
             SetButtons(false);
             _statusLabel.Text = $"Downloading {addins.Count} installer(s)...";
 
@@ -468,7 +505,7 @@ namespace AddinFinder
                 var failed = new List<string>();
                 foreach (var addin in addins)
                 {
-                    try   { saved.Add(AddinInstaller.DownloadSetup(addin)); }
+                    try   { saved.Add(AddinInstaller.DownloadSetup(addin, folder)); }
                     catch (Exception ex) { failed.Add($"{addin.Name}: {ex.Message}"); }
                 }
 
@@ -740,7 +777,22 @@ namespace AddinFinder
 
             var installed = _installedAddins.FirstOrDefault(a => a.Id == addin.Id);
             if (installed == null) return AddinStatus.NotInstalled;
-            return installed.Version == addin.Version ? AddinStatus.Installed : AddinStatus.UpdateAvailable;
+
+            // Compared as numbers, not as text. "Different from what is published" is still what
+            // puts an addin in UpdateAvailable -- including a copy AHEAD of the registry, since a
+            // publisher who rolls back a bad release means the earlier one to be installed. But
+            // 1.0 and 1.0.0 are the same version written two ways, and reading them as different
+            // offered an update that installing could never clear.
+            //
+            // It bites hardest on an addin that installs itself. For anything we placed, the
+            // installed version is the string we recorded from the registry, so it matches
+            // character for character. A setup addin records nothing: the version comes from its
+            // manifest and the published one from the release tag, written by different hands on
+            // different days, and expecting those two to agree on trailing zeroes is expecting too
+            // much of everybody.
+            return InstalledAddinStore.CompareDotted(installed.Version, addin.Version) == 0
+                ? AddinStatus.Installed
+                : AddinStatus.UpdateAvailable;
         }
 
         private static string StatusText(AddinStatus s) => s switch
