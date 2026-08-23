@@ -25,8 +25,13 @@ Check '0.6 equals 0.6.0'      (-not [bool]$isBefore.Invoke($null, @('0.6', '0.6.
 Check 'garbage does not throw' (-not [bool]$isBefore.Invoke($null, @('', ''))) 'threw or wrong'
 
 Write-Host "`n2. Running assembly reports its version"
+# Against version.json rather than a number written here, since the build rewrites that file from
+# <Version> on every Release build. Hard-coding it meant this suite failed on the release commit
+# itself, every time, for no reason anyone needed to know about.
+$expected = ((Get-Content 'F:\github\ClarionAddinFinder\version.json' -Raw) |
+             ConvertFrom-Json).version
 $v = $current.Invoke($null, @())
-Check 'version readable and is 0.8.0' ($v -eq '0.8.0') "got '$v'"
+Check "version readable and matches version.json ($expected)" ($v -eq $expected) "got '$v'"
 
 Write-Host "`n3. Who should be told (the decision ShowIfUpgraded makes)"
 # upgrading = LastSeenVersion set ? IsBefore(LastSeen, 0.8.0) : hasEarlierState

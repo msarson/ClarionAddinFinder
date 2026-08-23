@@ -71,7 +71,20 @@ $parser = $asm.GetType('AddinFinder.SimpleJsonParser')
 $m = $parser.GetMethod('ParsePublisherAddins', [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::Public)
 $json = (Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/msarson/clarion-addins/main/addins.json' -UseBasicParsing).Content
 $addins = $m.Invoke($null, @($json, 'msarson'))
-Check 'six addins parsed' ($addins.Count -eq 6) "got $($addins.Count)"
+# Not an exact count: this reads the LIVE file, so pinning a number here means the suite fails the
+# day msarson publishes anything. What matters is that the real file parses into entries of the
+# right shape.
+Check 'the real list parses into addins' ($addins.Count -ge 6) "got $($addins.Count)"
+$setups  = @($addins | Where-Object { $_.IsSetup })
+$ordinary = @($addins | Where-Object { -not $_.IsSetup })
+Write-Host "  parsed: $($ordinary.Count) ordinary, $($setups.Count) setup" -ForegroundColor DarkGray
+Check 'ordinary entries carry a version' `
+    (@($ordinary | Where-Object { $_.Version.Length -eq 0 }).Count -eq 0) 'an entry has no version'
+Check 'setup entries carry a repository and no version' `
+    (@($setups | Where-Object { $_.GithubRepo.Length -eq 0 -or $_.Version.Length -gt 0 }).Count -eq 0) `
+    'a setup entry is the wrong shape'
+Check 'and every setup repository belongs to the publisher' `
+    (@($setups | Where-Object { -not $pub.OwnsRepo($_.GithubRepo) }).Count -eq 0) 'a repository is not msarson-owned'
 Check 'every entry stamped with its publisher' `
     (@($addins | Where-Object { $_.Publisher -ne 'msarson' }).Count -eq 0) 'publisher not stamped'
 Check 'all download URLs pass the ownership check' `
