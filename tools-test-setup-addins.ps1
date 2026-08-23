@@ -100,6 +100,35 @@ Write-Host "`n9. An unknown repository does not throw"
 $missing = $gr.Resolve('msarson/definitely-not-a-real-repo-xyz', [DateTime]::Now)
 Check 'returns nothing instead of failing the refresh' ($null -eq $missing) 'unexpected result'
 
+Write-Host "`n10. A setup addin survives the registry cache"
+# Every fallback path goes through here: a publisher we could not reach, and a machine with no
+# network at all. The repository is what makes the addin self-installing, so losing it in the cache
+# turned Download back into Install -- for an entry with no URLs to install from.
+$cacheStore = Join-Path $sandbox 'cache-store'
+New-Item -ItemType Directory -Force -Path $cacheStore | Out-Null
+
+$cacheType = $asm.GetType('AddinFinder.RegistryCache')
+$cache = $cacheType.GetConstructor([Type[]]@([string])).Invoke(@([string]$cacheStore))
+
+$entry = $asm.CreateInstance('AddinFinder.RegistryAddin')
+$entry.Id = 'ClarionAssistant'; $entry.Name = 'Clarion Assistant'
+$entry.GithubRepo = 'ClarionLive/ClarionAssistant'
+$entry.Publisher  = 'clarionlive'
+Check 'a repository is what makes it self-installing' ($entry.IsSetup) 'not read as a setup addin'
+
+$addinList = [Activator]::CreateInstance(
+    [System.Collections.Generic.List`1].MakeGenericType($asm.GetType('AddinFinder.RegistryAddin')))
+$addinList.Add($entry)
+$cache.Put('clarionlive', $addinList)
+
+# A second instance, so this is what the NEXT session reads rather than what this one remembers.
+$reread = $cacheType.GetConstructor([Type[]]@([string])).Invoke(@([string]$cacheStore))
+$back = $reread.Get('clarionlive')
+Check 'the entry comes back'   ($back.Count -eq 1) "got $($back.Count)"
+Check 'with its repository'    ($back[0].GithubRepo -eq 'ClarionLive/ClarionAssistant') "got '$($back[0].GithubRepo)'"
+Check 'so the button still says Download' ($back[0].IsSetup) 'came back as one we could place'
+Check 'and it is marked stale rather than passed off as current' ($back[0].FromCache) 'not marked as cached'
+
 Remove-Item $sandbox -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host ''
 if ($fail -eq 0) { Write-Host 'ALL CHECKS PASSED' -ForegroundColor Green; exit 0 }

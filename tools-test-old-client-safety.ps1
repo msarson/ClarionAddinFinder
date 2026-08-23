@@ -84,6 +84,34 @@ Check 'and left no empty folder behind' `
     (-not (Test-Path (Join-Path $clarion 'accessory\addins\NothingToGet'))) `
     'an empty folder was created in the folder Clarion scans'
 
+Write-Host "`n5. Withdrawn entries in the cache are invisible to an old client too"
+# %APPDATA%\ClarionAddinFinder is per USER, not per Clarion -- an older build alongside a newer one
+# reads the same registry-cache.json. Entries kept aside after a publisher drops them therefore go
+# under their own "retired" key: filed among the publisher's own addins, an old client would read
+# them back as that publisher's current list and offer withdrawn addins for installation.
+$cacheStore = Join-Path $sandbox 'cache-store'
+New-Item -ItemType Directory -Force -Path $cacheStore | Out-Null
+
+$cacheType = $asm.GetType('AddinFinder.RegistryCache')
+$rc = $cacheType.GetConstructor([Type[]]@([string])).Invoke(@([string]$cacheStore))
+$listOfAddin = [System.Collections.Generic.List`1].MakeGenericType($asm.GetType('AddinFinder.RegistryAddin'))
+
+$listed = [Activator]::CreateInstance($listOfAddin)
+$a = $asm.CreateInstance('AddinFinder.RegistryAddin')
+$a.Id = 'DroppedAddin'; $a.Name = 'Dropped Addin'
+$a.DownloadZipUrl = 'https://github.com/ClarionLive/DroppedAddin/releases/download/v1/x.zip'
+$listed.Add($a)
+$rc.Put('ClarionLive', $listed)
+$rc.Put('ClarionLive', [Activator]::CreateInstance($listOfAddin))   # the publisher drops it
+
+$cacheJson = Get-Content (Join-Path $cacheStore 'registry-cache.json') -Raw
+$rawCache  = $js.Deserialize($cacheJson, [System.Collections.Generic.Dictionary[string,object]])
+$oldSees   = @($rawCache['publishers'] | ForEach-Object { $_['addins'] } | Where-Object { $_ })
+Check 'an old client reading the cache sees no addins for that publisher' ($oldSees.Count -eq 0) `
+    "saw $($oldSees.Count) -- a withdrawn addin would be offered again"
+Check 'while the entry is still on file for describing it' `
+    ($cacheJson -match '"retired":\[\{.*"id":"DroppedAddin"') 'the entry was lost'
+
 Remove-Item $sandbox -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host ''
 if ($fail -eq 0) { Write-Host 'ALL CHECKS PASSED' -ForegroundColor Green; exit 0 }

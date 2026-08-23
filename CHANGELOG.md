@@ -51,6 +51,33 @@ All notable changes to Addin Finder are documented here.
   the two differ in practice — FlattenCode installs as `FlattenCode` and declares
   `<Identity name="FlattenCode.Addin"/>`.
 
+### Fixed
+- **A setup addin no longer turns back into an ordinary one after a trip through the cache.** The
+  registry cache copied every field of an entry except the repository — and the repository is what
+  makes an addin self-installing. Any fallback went through it: a publisher who could not be
+  reached, or a machine with no network at all. The addin came back looking like one Addin Finder
+  could place, so the button read **Install** rather than Download, on an entry that by design has
+  no URLs to install from. The refusal added earlier in 0.8.1 stopped that going anywhere harmful,
+  but the offer should never have been made — and with the repository gone, the last known version
+  could not be looked up either, which is the one thing the cache was there to keep showing.
+- **An addin that has just been withdrawn is described, not reduced to a folder name.** The cache
+  exists partly so that someone still running a withdrawn addin can be told what it is and who
+  wrote it. That never actually happened: a refresh replaces a publisher's list wholesale, and it
+  does so *before* anything asks what became of an installed addin — so the entry being asked about
+  had already been overwritten, and the user was shown a bare id with no description, author or
+  homepage, at the moment they most needed them. Entries that drop out of a list are now kept aside
+  under their own `retired` key, and an addin that reappears comes back off that shelf.
+
+  They are deliberately not kept among the publisher's own entries, which are read back as that
+  publisher's current list — a withdrawn addin filed there would simply be offered for installation
+  again.
+
+  This also settles what is said about an addin nobody installed *through* Addin Finder, such as one
+  that arrived via its own setup. The report is about the listing, never about a relationship:
+  "a publisher we follow used to list this and no longer does" is true however the addin got there,
+  while an addin nobody we follow has ever listed still says nothing at all. Remove stays unoffered
+  for a withdrawn setup addin, which is the second thing the repository fix above quietly buys.
+
 ## [0.8.0] - 2026-08-22
 
 ### Added

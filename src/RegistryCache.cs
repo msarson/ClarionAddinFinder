@@ -25,15 +25,49 @@ namespace AddinFinder
         private readonly string _path;
         private Dictionary<string, List<RegistryAddin>> _byPublisher;
 
+        /// <summary>
+        /// Entries that were in a publisher's list and are not any more, keyed by addin id.
+        ///
+        /// The second purpose above cannot be served by the per-publisher lists alone. A refresh
+        /// replaces a publisher's list wholesale, and that happens BEFORE anyone asks what became of
+        /// an installed addin -- so by the time the question is put, the delisted entry has already
+        /// been overwritten and only its id survives. Someone whose addin has just been withdrawn is
+        /// exactly the person who needs to read what it was and who wrote it, and they would have
+        /// been shown a bare folder name.
+        ///
+        /// Deliberately NOT stored among the per-publisher entries: those are read back as a
+        /// publisher's current list, so a withdrawn addin filed there would be offered for
+        /// installation again. It lives under its own top-level key for the same reason setupAddins
+        /// does -- a shape an older reader would misunderstand does not go where it will find it.
+        /// </summary>
+        private Dictionary<string, RegistryAddin> _retired;
+
         public RegistryCache(string storeDir)
         {
             _path = Path.Combine(storeDir, "registry-cache.json");
-            _byPublisher = Read();
+            var doc      = Read();
+            _byPublisher = doc.ByPublisher;
+            _retired     = doc.Retired;
         }
 
-        /// <summary>Replace the cached list for one publisher after a successful fetch.</summary>
+        /// <summary>
+        /// Replace the cached list for one publisher after a successful fetch.
+        ///
+        /// Anything that has dropped out of their list is kept aside rather than discarded, so it can
+        /// still be described to whoever has it installed. An entry that reappears is taken back off
+        /// that shelf, so the store never disagrees with a list that is currently being served.
+        /// </summary>
         public void Put(string publisherId, List<RegistryAddin> addins)
         {
+            var incoming = new HashSet<string>(addins.Select(a => a.Id), StringComparer.OrdinalIgnoreCase);
+
+            List<RegistryAddin> previous;
+            if (_byPublisher.TryGetValue(publisherId, out previous))
+                foreach (var a in previous.Where(a => a.Id.Length > 0 && !incoming.Contains(a.Id)))
+                    _retired[a.Id] = Clone(a);
+
+            foreach (string id in incoming) _retired.Remove(id);
+
             _byPublisher[publisherId] = addins.Select(Clone).ToList();
             Write();
         }
@@ -48,7 +82,8 @@ namespace AddinFinder
 
         /// <summary>
         /// The last-known entry for an id from any publisher, or null. Used to describe an addin that
-        /// is installed but no longer listed anywhere.
+        /// is installed but no longer listed anywhere -- so entries a publisher has since dropped are
+        /// searched too, and are the whole point of the search.
         /// </summary>
         public RegistryAddin? Find(string addinId)
         {
@@ -56,6 +91,12 @@ namespace AddinFinder
             {
                 var hit = pair.Value.FirstOrDefault(a => a.Id == addinId);
                 if (hit != null) { var c = Clone(hit); c.FromCache = true; return c; }
+            }
+
+            RegistryAddin retired;
+            if (_retired.TryGetValue(addinId, out retired))
+            {
+                var c = Clone(retired); c.FromCache = true; return c;
             }
             return null;
         }
@@ -76,17 +117,24 @@ namespace AddinFinder
             DownloadUrls = new List<string>(a.DownloadUrls), DownloadZipUrl = a.DownloadZipUrl,
             AddinFileUrl = a.AddinFileUrl, HomepageUrl = a.HomepageUrl, ChangelogUrl = a.ChangelogUrl,
             Fork = a.Fork, UpstreamUrl = a.UpstreamUrl, Publisher = a.Publisher,
+
+            // Without this an addin that installs itself comes back from cache looking like one we
+            // could place: IsSetup is derived from the repo, so losing it turns Download into
+            // Install, and the entry has no URLs to install from. Every cache fallback -- an
+            // unreachable publisher, no network at all -- went through here.
+            GithubRepo = a.GithubRepo,
+
             Status = a.Status, StatusNote = a.StatusNote, ReplacedBy = a.ReplacedBy,
         };
 
-        private Dictionary<string, List<RegistryAddin>> Read()
+        private RegistryCacheDoc Read()
         {
             try
             {
-                if (!File.Exists(_path)) return new Dictionary<string, List<RegistryAddin>>();
+                if (!File.Exists(_path)) return new RegistryCacheDoc();
                 return SimpleJsonParser.ParseRegistryCache(File.ReadAllText(_path, Encoding.UTF8));
             }
-            catch { return new Dictionary<string, List<RegistryAddin>>(); }
+            catch { return new RegistryCacheDoc(); }
         }
 
         private void Write()
@@ -94,9 +142,20 @@ namespace AddinFinder
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-                File.WriteAllText(_path, SimpleJsonParser.SerialiseRegistryCache(_byPublisher), Encoding.UTF8);
+                File.WriteAllText(_path,
+                    SimpleJsonParser.SerialiseRegistryCache(_byPublisher, _retired), Encoding.UTF8);
             }
             catch { /* a cache we cannot write is not worth failing a refresh over */ }
         }
+    }
+
+    /// <summary>registry-cache.json as read from disk: current lists, plus what has been dropped.</summary>
+    public class RegistryCacheDoc
+    {
+        public Dictionary<string, List<RegistryAddin>> ByPublisher { get; set; } =
+            new Dictionary<string, List<RegistryAddin>>();
+
+        public Dictionary<string, RegistryAddin> Retired { get; set; } =
+            new Dictionary<string, RegistryAddin>(StringComparer.OrdinalIgnoreCase);
     }
 }

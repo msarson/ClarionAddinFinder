@@ -239,9 +239,9 @@ namespace AddinFinder
                 }).ToList()
             });
 
-        public static Dictionary<string, List<RegistryAddin>> ParseRegistryCache(string json)
+        public static RegistryCacheDoc ParseRegistryCache(string json)
         {
-            var result = new Dictionary<string, List<RegistryAddin>>();
+            var result = new RegistryCacheDoc();
             if (string.IsNullOrWhiteSpace(json)) return result;
 
             var raw = _js.Deserialize<Dictionary<string, object>>(json);
@@ -256,19 +256,34 @@ namespace AddinFinder
                     addin.Publisher = id;
                     list.Add(addin);
                 }
-                result[id] = list;
+                result.ByPublisher[id] = list;
+            }
+
+            // Entries a publisher has since dropped. Their own key, never among the per-publisher
+            // lists: read back as part of a publisher's current list, a withdrawn addin would be
+            // offered for installation again. Each carries the publisher it came from, because that
+            // is the first thing someone asks about an addin that has just been withdrawn.
+            foreach (var a in Entries(raw, "retired"))
+            {
+                var addin = MapAddin(a);
+                if (addin.Id.Length == 0) continue;
+                addin.Publisher = S(a, "publisher");
+                result.Retired[addin.Id] = addin;
             }
             return result;
         }
 
-        public static string SerialiseRegistryCache(Dictionary<string, List<RegistryAddin>> byPublisher)
+        public static string SerialiseRegistryCache(
+            Dictionary<string, List<RegistryAddin>> byPublisher,
+            Dictionary<string, RegistryAddin> retired)
             => _js.Serialize(new
             {
                 publishers = byPublisher.Select(pair => new
                 {
                     id     = pair.Key,
                     addins = pair.Value.Select(SerialisableAddin).ToList()
-                }).ToList()
+                }).ToList(),
+                retired = retired.Values.Select(SerialisableAddin).ToList()
             });
 
         private static object SerialisableAddin(RegistryAddin a) => new
@@ -293,6 +308,11 @@ namespace AddinFinder
             status          = a.Status,
             statusNote      = a.StatusNote,
             replacedBy      = a.ReplacedBy,
+
+            // Redundant for a per-publisher entry, which is read back under the id that owns it, but
+            // a retired one has no such enclosure -- and an addin that has just been withdrawn is
+            // the last one that should be unable to say whose it was.
+            publisher       = a.Publisher,
         };
 
         /// <summary>
