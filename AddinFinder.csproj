@@ -66,7 +66,17 @@
   <Target Name="CreateRelease" AfterTargets="UpdateVersionJson" Condition="'$(DoRelease)' == 'true' AND '$(Configuration)' == 'Release'">
     <PropertyGroup>
       <ZipPath>$(OutputPath)AddinFinder-v$(Version).zip</ZipPath>
+      <NotesPath>$(OutputPath)release-notes-v$(Version).md</NotesPath>
     </PropertyGroup>
+
+    <!--
+      Notes are this version's CHANGELOG section, not the whole file. Passing CHANGELOG.md straight
+      to gh put fifteen version sections in the v0.9.0 body, which truncated the release card
+      mid-0.8.0 and pushed Assets off the first screen. Naming the version rather than taking the
+      top section also fails the build when CHANGELOG.md has no entry for what is being released.
+    -->
+    <Exec Command="powershell -NoProfile -Command &quot;&amp; '$(MSBuildProjectDirectory)\tools-release-notes.ps1' -Version '$(Version)' | Set-Content -Encoding UTF8 '$(NotesPath)'&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
 
     <Exec Command="powershell -NoProfile -Command &quot;Compress-Archive -Path '$(OutputPath)AddinFinder.dll','$(MSBuildProjectDirectory)\AddinFinder.addin' -DestinationPath '$(ZipPath)' -Force&quot;"
           WorkingDirectory="$(MSBuildProjectDirectory)" />
@@ -76,7 +86,7 @@
     <Exec Command="git push" WorkingDirectory="$(MSBuildProjectDirectory)" />
     <Exec Command="git tag v$(Version)" WorkingDirectory="$(MSBuildProjectDirectory)" />
     <Exec Command="git push origin v$(Version)" WorkingDirectory="$(MSBuildProjectDirectory)" />
-    <Exec Command="gh release create v$(Version) &quot;$(OutputPath)AddinFinder.dll&quot; &quot;$(MSBuildProjectDirectory)\AddinFinder.addin&quot; &quot;$(ZipPath)&quot; --title &quot;v$(Version)&quot; --notes-file &quot;$(MSBuildProjectDirectory)\CHANGELOG.md&quot;"
+    <Exec Command="gh release create v$(Version) &quot;$(OutputPath)AddinFinder.dll&quot; &quot;$(MSBuildProjectDirectory)\AddinFinder.addin&quot; &quot;$(ZipPath)&quot; --title &quot;v$(Version)&quot; --notes-file &quot;$(NotesPath)&quot;"
           WorkingDirectory="$(MSBuildProjectDirectory)" />
 
     <Message Text="Released v$(Version) to GitHub." Importance="high" />
