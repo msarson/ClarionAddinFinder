@@ -2,6 +2,18 @@
 
 All notable changes to Addin Finder are documented here.
 
+## [0.9.1] - 2026-10-23
+
+### Fixed
+- **Clicking ⟳ Refresh now re-checks GitHub for setup addins' releases** ([#10]). The six-hour
+  release cache applied to the button too, so a publisher who had just tagged a release saw the
+  previous version across repeated clicks, with no way to make the pad look again short of
+  deleting `release-cache.json`. The cache still applies when the pad opens on its own; an explicit
+  click asks GitHub once per setup addin. A forced lookup that fails still shows the last known
+  version rather than blanking it.
+
+[#10]: https://github.com/msarson/ClarionAddinFinder/issues/10
+
 ## [0.9.0] - 2026-08-23
 
 ### Added
