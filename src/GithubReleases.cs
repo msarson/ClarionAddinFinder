@@ -77,14 +77,20 @@ namespace AddinFinder
         /// Returns the cached answer on failure rather than nothing: a rate limit or a dropped
         /// connection should not make an addin look unavailable, for the same reason a publisher
         /// being unreachable does not empty the pad.
+        ///
+        /// "force" skips the freshness check, and nothing else. The cache exists for automatic
+        /// pad-opens; an explicit Refresh click is a user saying "ask again anyway" -- typically a
+        /// publisher who has just tagged a release and was otherwise told to wait out six hours.
+        /// One request per setup addin, only when a human asks, does not trouble the hourly cap. A
+        /// forced attempt that fails still returns the cached answer, for the reason above.
         /// </summary>
-        public GithubRelease? Resolve(string ownerRepo, DateTime now)
+        public GithubRelease? Resolve(string ownerRepo, DateTime now, bool force = false)
         {
             if (string.IsNullOrWhiteSpace(ownerRepo)) return null;
 
             GithubRelease? cached;
             _cache.TryGetValue(ownerRepo, out cached);
-            if (cached != null && IsFresh(cached, now)) return cached;
+            if (!force && cached != null && IsFresh(cached, now)) return cached;
 
             try
             {

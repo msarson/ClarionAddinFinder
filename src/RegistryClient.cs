@@ -70,8 +70,11 @@ namespace AddinFinder
         /// perpetually nought hours old and a six-hour cache behaved as "the first answer of the
         /// calendar day, frozen until the next one". A publisher could tag a release and their users
         /// would not see it that day. DateTime is the same type either way, so nothing complained.
+        ///
+        /// "forceReleases" is for an explicit Refresh click: it asks GitHub for setup addins'
+        /// releases even when the cached answer is fresh. See GithubReleases.Resolve.
         /// </summary>
-        public RegistryResult FetchAll(DateTime now)
+        public RegistryResult FetchAll(DateTime now, bool forceReleases = false)
         {
             var result = new RegistryResult();
 
@@ -118,7 +121,7 @@ namespace AddinFinder
                         fetched.Outcome == FetchOutcome.Ok ? fetched.Addins : _cache.Get(p.Id));
             }
 
-            ResolveSetupReleases(result.Addins, now);
+            ResolveSetupReleases(result.Addins, now, forceReleases);
             return result;
         }
 
@@ -132,11 +135,11 @@ namespace AddinFinder
         /// A failure here leaves Release null, which reads as "no installer available" rather than
         /// as an error. Losing a version number should not make a working addin look broken.
         /// </summary>
-        private void ResolveSetupReleases(List<RegistryAddin> addins, DateTime now)
+        private void ResolveSetupReleases(List<RegistryAddin> addins, DateTime now, bool force)
         {
             foreach (var addin in addins.Where(a => a.IsSetup))
             {
-                try { addin.Release = _releases.Resolve(addin.GithubRepo, now); }
+                try { addin.Release = _releases.Resolve(addin.GithubRepo, now, force); }
                 catch { /* cached answer, or none */ }
 
                 // The registry carries no version for these, so the release is the only source.

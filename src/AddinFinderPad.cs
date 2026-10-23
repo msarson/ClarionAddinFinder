@@ -75,7 +75,7 @@ namespace AddinFinder
                         WhatsChangedNotice.HasEarlierState(_installedAddins.Count)))
                     WhatsChangedPanel.ShowOver(_contentPanel);
 
-                OnRefreshClick(null, EventArgs.Empty);
+                Refresh(forceReleases: false);
             };
 
             if (_contentPanel.IsHandleCreated)
@@ -84,7 +84,7 @@ namespace AddinFinder
                 _contentPanel.BeginInvoke(new Action(() =>
                 {
                     SetPadTitle();
-                    OnRefreshClick(null, EventArgs.Empty);
+                    Refresh(forceReleases: false);
                 }));
             }
             else
@@ -115,7 +115,12 @@ namespace AddinFinder
 
         // ── Refresh ──────────────────────────────────────────────────────
 
-        private void OnRefreshClick(object? sender, EventArgs e)
+        // The button is a user asking to look again, so it re-asks GitHub for setup addins'
+        // releases even when the cached answer is fresh. The automatic refresh on pad-open does
+        // not -- that is what the release cache is for.
+        private void OnRefreshClick(object? sender, EventArgs e) => Refresh(forceReleases: true);
+
+        private void Refresh(bool forceReleases)
         {
             _refreshButton.Enabled = false;
             _statusLabel.Text      = "Fetching registry…";
@@ -129,7 +134,7 @@ namespace AddinFinder
                 RegistryResult? registry   = null;
                 SelfUpdateInfo? updateInfo = null;
 
-                try   { registry   = _registryClient.FetchAll(DateTime.Now); }
+                try   { registry   = _registryClient.FetchAll(DateTime.Now, forceReleases); }
                 catch (Exception ex) { registryEx = ex; }
 
                 try   { updateInfo = SelfUpdateChecker.Check(); }
