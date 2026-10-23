@@ -16,7 +16,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$lines = Get-Content -Path $Path
+# Explicitly UTF-8: CHANGELOG.md has no BOM, and Windows PowerShell reads a BOM-less file as ANSI,
+# which turned every em dash and the Refresh glyph into mojibake in the release body.
+$lines = Get-Content -Path $Path -Encoding UTF8
 
 # Section headings look like "## [0.9.0] - 2026-08-23". Anything less specific would also match the
 # "### Added" subheadings inside a section.
