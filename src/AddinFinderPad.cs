@@ -795,9 +795,9 @@ namespace AddinFinder
             // manifest and the published one from the release tag, written by different hands on
             // different days, and expecting those two to agree on trailing zeroes is expecting too
             // much of everybody.
-            return InstalledAddinStore.CompareDotted(installed.Version, addin.Version) == 0
-                ? AddinStatus.Installed
-                : AddinStatus.UpdateAvailable;
+            return InstalledAddinStore.IsUpdateAvailable(installed.Version, addin)
+                ? AddinStatus.UpdateAvailable
+                : AddinStatus.Installed;
         }
 
         private static string StatusText(AddinStatus s) => s switch

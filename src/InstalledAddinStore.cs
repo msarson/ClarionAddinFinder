@@ -214,6 +214,21 @@ namespace AddinFinder
             return changed;
         }
 
+        /// <summary>
+        /// Whether an installed copy should be offered the published version: any numeric
+        /// difference, in either direction -- see AddinFinderPad.GetStatus for why.
+        ///
+        /// Except when there is no published version to differ from. A setup addin's version comes
+        /// only from its resolved release, so a failed lookup with nothing cached leaves it empty,
+        /// and CompareDotted reads "" as 0 -- which offered an update on the strength of not
+        /// knowing (#11). Not knowing is not evidence of anything newer.
+        /// </summary>
+        public static bool IsUpdateAvailable(string installedVersion, RegistryAddin addin)
+        {
+            if (addin.Version.Length == 0) return false;
+            return CompareDotted(installedVersion, addin.Version) != 0;
+        }
+
         /// <summary>-1 if a &lt; b, 0 if equal, 1 if a &gt; b. Component-wise, so 1.10 beats 1.9.</summary>
         public static int CompareDotted(string a, string b)
         {

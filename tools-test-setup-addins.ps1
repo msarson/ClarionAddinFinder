@@ -238,6 +238,21 @@ $kept = $fgr.Resolve('msarson/definitely-not-a-real-repo-xyz', [DateTime]::Now, 
 Check 'a forced lookup that fails keeps the cached answer rather than blanking it' `
     ($null -ne $kept -and $kept.Tag -eq 'v9.9.9') "got '$($kept.Tag)'"
 
+Write-Host "`n11c. An unresolved release is not an update"
+# Issue #11. A setup addin's published version comes only from its release. A failed lookup with
+# nothing cached left it "", CompareDotted read that as 0, and an installed 1.2.0 was offered an
+# update on the strength of nobody knowing what was published.
+$isUpdate = $asm.GetType('AddinFinder.InstalledAddinStore').GetMethod('IsUpdateAvailable', $static)
+$unresolved = $asm.CreateInstance('AddinFinder.RegistryAddin')
+$unresolved.Id = 'Unresolved'; $unresolved.GithubRepo = 'ClarionLive/CA-Debugger'
+Check 'no published version -> not an update' `
+    (-not [bool]$isUpdate.Invoke($null, @([string]'1.2.0', $unresolved))) 'offered an update against nothing'
+$unresolved.Version = '1.2.1'
+Check 'a resolved newer release still is'     ([bool]$isUpdate.Invoke($null, @([string]'1.2.0', $unresolved))) 'missed a real update'
+$unresolved.Version = '1.2.0.0'
+Check 'and the same version written longer is not' `
+    (-not [bool]$isUpdate.Invoke($null, @([string]'1.2.0', $unresolved))) 'trailing zeroes read as a difference'
+
 Write-Host "`n12. The user chooses where the installer is saved"
 # Asked every time, starting from wherever one was last saved. What is being fetched is an
 # executable the user has to find and run with elevation, so "it went somewhere, try Downloads" is
