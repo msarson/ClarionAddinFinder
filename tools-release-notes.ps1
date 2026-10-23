@@ -4,14 +4,15 @@
 # /releases truncated mid-0.8.0 and pushed Assets off the first screen. Release notes are for the
 # version being released; the history already lives in CHANGELOG.md and in the older releases.
 #
-#   .\tools-release-notes.ps1 | Set-Content -Encoding UTF8 notes.md
+#   .\tools-release-notes.ps1 -OutFile notes.md
 #   gh release create v0.9.1 --notes-file notes.md bin\Release\AddinFinder-v0.9.1.zip
 #
 # Defaults to the topmost section, which is the one being released. Pass -Version to pick another.
 
 param(
     [string]$Version,
-    [string]$Path = (Join-Path $PSScriptRoot 'CHANGELOG.md')
+    [string]$Path = (Join-Path $PSScriptRoot 'CHANGELOG.md'),
+    [string]$OutFile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,4 +57,11 @@ $body = $lines[($start.Index + 1)..$end]
 while ($body.Count -gt 0 -and [string]::IsNullOrWhiteSpace($body[0]))                { $body = $body[1..($body.Count - 1)] }
 while ($body.Count -gt 0 -and [string]::IsNullOrWhiteSpace($body[$body.Count - 1])) { $body = $body[0..($body.Count - 2)] }
 
-$body
+# Written here rather than piped to Set-Content, because Windows PowerShell's "-Encoding UTF8"
+# always adds a BOM -- and a BOM ahead of "### Fixed" put a stray character at the top of the
+# v0.9.1 release body.
+if ($OutFile) {
+    [IO.File]::WriteAllLines($OutFile, [string[]]$body, (New-Object Text.UTF8Encoding($false)))
+} else {
+    $body
+}

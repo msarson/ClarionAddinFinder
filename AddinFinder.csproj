@@ -75,7 +75,7 @@
       mid-0.8.0 and pushed Assets off the first screen. Naming the version rather than taking the
       top section also fails the build when CHANGELOG.md has no entry for what is being released.
     -->
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;&amp; '$(MSBuildProjectDirectory)\tools-release-notes.ps1' -Version '$(Version)' | Set-Content -Encoding UTF8 '$(NotesPath)'&quot;"
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;&amp; '$(MSBuildProjectDirectory)\tools-release-notes.ps1' -Version '$(Version)' -OutFile '$(NotesPath)'&quot;"
           WorkingDirectory="$(MSBuildProjectDirectory)" />
 
     <Exec Command="powershell -NoProfile -Command &quot;Compress-Archive -Path '$(OutputPath)AddinFinder.dll','$(MSBuildProjectDirectory)\AddinFinder.addin' -DestinationPath '$(ZipPath)' -Force&quot;"
