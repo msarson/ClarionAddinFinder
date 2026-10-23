@@ -209,6 +209,35 @@ if (-not (Test-Path $cacheFile)) {
         'midnight was treated as always-fresh'
 }
 
+Write-Host "`n11b. Clicking Refresh asks GitHub again, even inside the six hours"
+# Issue #10. A publisher tagged a release and the pad went on showing the previous one across
+# repeated Refresh clicks, because the click took the same cached path as an automatic pad-open.
+# Planted here: an entry stamped a minute ago with a tag that is not the current release -- exactly
+# what the cache holds the moment after someone publishes.
+$forceStore = Join-Path $sandbox 'force-store'
+New-Item -ItemType Directory -Force -Path $forceStore | Out-Null
+$oneMinuteAgo = [DateTime]::Now.AddMinutes(-1).ToString('yyyy-MM-dd HH:mm')
+Set-Content -Path (Join-Path $forceStore 'release-cache.json') -Encoding UTF8 -Value (
+    '{"releases":[' +
+    '{"repo":"ClarionLive/ClarionAssistant","tag":"v0.0.1","assetUrl":"https://github.com/ClarionLive/ClarionAssistant/old.exe","assetName":"old.exe","checkedOn":"' + $oneMinuteAgo + '"},' +
+    '{"repo":"msarson/definitely-not-a-real-repo-xyz","tag":"v9.9.9","assetUrl":"https://github.com/msarson/x.exe","assetName":"x.exe","checkedOn":"' + $oneMinuteAgo + '"}' +
+    ']}')
+
+$fgr = $grType.GetConstructor([Type[]]@([string])).Invoke(@([string]$forceStore))
+$auto = $fgr.Resolve('ClarionLive/ClarionAssistant', [DateTime]::Now, $false)
+Check 'an automatic open still uses the fresh cache' ($auto.Tag -eq 'v0.0.1') "got '$($auto.Tag)'"
+
+$forced = $fgr.Resolve('ClarionLive/ClarionAssistant', [DateTime]::Now, $true)
+if ($forced.Tag -eq 'v0.0.1') {
+    Write-Host "  SKIP  no answer from GitHub (rate limit or offline)" -ForegroundColor Yellow
+} else {
+    Check 'a Refresh click sees the release published since' ($forced.Tag -match '^v?\d' -and $forced.Tag -ne 'v0.0.1') "got '$($forced.Tag)'"
+}
+
+$kept = $fgr.Resolve('msarson/definitely-not-a-real-repo-xyz', [DateTime]::Now, $true)
+Check 'a forced lookup that fails keeps the cached answer rather than blanking it' `
+    ($null -ne $kept -and $kept.Tag -eq 'v9.9.9') "got '$($kept.Tag)'"
+
 Write-Host "`n12. The user chooses where the installer is saved"
 # Asked every time, starting from wherever one was last saved. What is being fetched is an
 # executable the user has to find and run with elevation, so "it went somewhere, try Downloads" is
