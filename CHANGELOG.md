@@ -2,6 +2,16 @@
 
 All notable changes to Addin Finder are documented here.
 
+## [Unreleased]
+
+### Fixed
+- **A setup addin whose release could not be resolved no longer shows "Update available"**
+  ([#11]). With the lookup failed and nothing cached there is no published version, and comparing
+  the installed one against nothing read as a difference. It now shows as installed: not knowing
+  what was published is not evidence of anything newer.
+
+[#11]: https://github.com/msarson/ClarionAddinFinder/issues/11
+
 ## [0.9.1] - 2026-10-23
 
 ### Fixed
